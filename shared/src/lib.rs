@@ -3,6 +3,7 @@ pub mod logger;
 
 use serde::Deserialize;
 use clap::Parser;
+use std::net::Ipv4Addr;
 
 #[derive(Deserialize)]
 pub struct ServerConfig {
@@ -11,7 +12,8 @@ pub struct ServerConfig {
 
 #[derive(Deserialize)]
 pub struct Server {
-   pub bind_addr: String,
+   pub bind_addr: Ipv4Addr,
+   pub bind_port: u16
    // heartbeat_interval: Option<u16>,
 }
 
@@ -22,7 +24,8 @@ pub struct ClientConfig {
 
 #[derive(Deserialize)]
 pub struct Client {
-   pub remote_addr: String,
+   pub remote_addr: Ipv4Addr,
+   pub remote_port: u16,
    pub endpoint_addr: String,
 }
 

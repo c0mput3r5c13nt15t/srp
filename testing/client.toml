@@ -1,3 +1,4 @@
 [client]
-remote_addr="srps:7000"
+remote_addr="172.0.0.2"
+remote_port=7000
 endpoint_addr="web:443"

@@ -1,55 +1,56 @@
-use tokio::net::TcpListener;
-use tokio::io::{copy_bidirectional, AsyncWriteExt};
-use tokio::sync::mpsc;
-use std::io;
 use shared;
-use log::{info, warn};
+use log::{info};
+use quinn::{Endpoint};
+use quinn::ServerConfig;
+use std::{
+    error::Error,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
+use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
+
+async fn run_server(addr: SocketAddr) {
+    let (endpoint, _server_cert) = make_server_endpoint(addr).unwrap();
+    // accept a single connection
+    let incoming_conn = endpoint.accept().await.unwrap();
+    let conn = incoming_conn.await.unwrap();
+    info!(
+        "[server] connection accepted: addr={}",
+        conn.remote_address()
+    );
+}
+
+pub(crate) fn make_server_endpoint(
+    bind_addr: SocketAddr,
+) -> Result<(Endpoint, CertificateDer<'static>), Box<dyn Error + Send + Sync + 'static>> {
+    let (server_config, server_cert) = configure_server()?;
+    let endpoint = Endpoint::server(server_config, bind_addr)?;
+    Ok((endpoint, server_cert))
+}
+
+fn configure_server()
+-> Result<(ServerConfig, CertificateDer<'static>), Box<dyn Error + Send + Sync + 'static>> {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let cert_der = CertificateDer::from(cert.cert);
+    let priv_key = PrivatePkcs8KeyDer::from(cert.signing_key.serialize_der());
+
+    let mut server_config =
+        ServerConfig::with_single_cert(vec![cert_der.clone()], priv_key.into())?;
+    let transport_config = Arc::get_mut(&mut server_config.transport).unwrap();
+    transport_config.max_concurrent_uni_streams(0_u8.into());
+
+    Ok((server_config, cert_der))
+}
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     shared::logger::init().unwrap();
 
     let args = shared::Args::parse_args();
 
     let config: shared::ServerConfig = shared::config::parse_server_config(&args.config);
 
-    let tunnel_listener = TcpListener::bind(&config.server.bind_addr).await?;
-    let public_listener = TcpListener::bind("0.0.0.0:443").await?;
-
-    info!("Relay listening on {} (agent) and 443 (public)", &config.server.bind_addr);
-
-    let (tx, mut rx) = mpsc::channel::<tokio::net::TcpStream>(1);
-
-    // Accept agent connection
-    tokio::spawn(async move {
-        loop {
-            let (stream, addr) = tunnel_listener.accept().await.unwrap();
-            info!("Agent connected: {}", addr);
-            tx.send(stream).await.unwrap();
-        }
-    });
-
-    loop {
-        let (mut inbound, addr) = public_listener.accept().await?;
-        info!("Incoming client: {}", addr);
-
-        let mut agent = match rx.recv().await {
-            Some(s) => s,
-            None => {
-                warn!("No agent available");
-                continue;
-            }
-        };
-
-        tokio::spawn(async move {
-            info!("Forwarding to agent");
-
-            if agent.write_all(b"START\n").await.is_err() {
-                warn!("Failed to signal agent");
-                return;
-            }
-
-            let _ = copy_bidirectional(&mut inbound, &mut agent).await;
-        });
-    }
+    let addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
+    tokio::spawn(run_server(addr));
+    Ok(())
 }

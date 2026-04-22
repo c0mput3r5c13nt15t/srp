@@ -11,7 +11,8 @@ services:
     ports:
       - "443:443"
     networks:
-      - internet
+      internet:
+        ipv4_address: 172.25.0.2
 
   srps:
     build:
@@ -23,8 +24,9 @@ services:
     depends_on:
       - web
     networks:
-      - internet
-      - home
+      internet:
+        ipv4_address: 172.25.0.3
+      home:
 
   web:
     image: caddy
@@ -36,4 +38,8 @@ services:
 
 networks:
   internet:
+    ipam:
+     config:
+       - subnet: 172.25.0.0/24
+         gateway: 172.25.0.1
   home:

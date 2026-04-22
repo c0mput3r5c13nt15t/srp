@@ -1,35 +1,52 @@
-use tokio::net::TcpStream;
-use tokio::io::{copy_bidirectional, AsyncReadExt};
-use tokio::net::TcpStream as TokioTcpStream;
-use std::io;
+use std::{
+    error::Error,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 use shared;
 use log::{info};
+use quinn::crypto::rustls::QuicClientConfig;
+use quinn::{Endpoint, ClientConfig};
+
+mod certificate_validation;
+
+use certificate_validation::SkipServerVerification;
+
+async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
+
+    endpoint.set_default_client_config(ClientConfig::new(Arc::new(QuicClientConfig::try_from(
+        rustls::ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(SkipServerVerification::new())
+            .with_no_client_auth(),
+    )?)));
+
+    // connect to server
+    let connection = endpoint
+        .connect(server_addr, "localhost")
+        .unwrap()
+        .await
+        .unwrap();
+    info!("[client] connected: addr={}", connection.remote_address());
+    // Dropping handles allows the corresponding objects to automatically shut down
+    drop(connection);
+    // Make sure the server has a chance to clean up
+    endpoint.wait_idle().await;
+
+    Ok(())
+}
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     shared::logger::init().unwrap();
-
+    
     let args = shared::Args::parse_args();
 
     let config: shared::ClientConfig = shared::config::parse_client_config(&args.config);
 
-    loop {
-        info!("Connecting to relay...");
-        let mut tunnel = TcpStream::connect(&config.client.remote_addr).await?;
-
-        let mut buffer = [0u8; 6];
-
-        loop {
-            if tunnel.read_exact(&mut buffer).await.is_err() {
-                info!("Tunnel closed");
-                break;
-            }
-
-            if &buffer == b"START\n" {
-                let mut local = TokioTcpStream::connect(&config.client.endpoint_addr).await?;
-                let _ = copy_bidirectional(&mut tunnel, &mut local).await;
-                break;
-            }
-        }
-    }
+    // server and client are running on the same thread asynchronously
+    let addr = SocketAddr::new(IpAddr::V4(config.client.remote_addr), config.client.remote_port);
+    tokio::spawn(run_client(addr));
+    Ok(())
 }

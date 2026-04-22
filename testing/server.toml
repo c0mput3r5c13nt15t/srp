@@ -1,2 +1,4 @@
 [server]
-bind_addr="0.0.0.0:7000"
+expose_addr="0.0.0.0:443"
+bind_addr="0.0.0.0"
+bind_port=7000
