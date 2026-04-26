@@ -3,11 +3,9 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
-use shared;
 use log::{info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{Endpoint, ClientConfig};
-use quinn::TransportConfig;
 
 mod certificate_validation;
 
@@ -20,30 +18,29 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
     .install_default()
     .expect("failed to install crypto provider");
 
-    // let mut transport = TransportConfig::default();
-    // transport.enable_segmentation_offload(false);
-
-    let mut client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(
+    let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(
         rustls::ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(SkipServerVerification::new())
             .with_no_client_auth(),
     )?));
 
-    // client_config.transport_config(Arc::new(transport));
-
     endpoint.set_default_client_config(client_config);
 
-    // connect to server
+    // Connect
     let connection = endpoint
         .connect(server_addr, "localhost")
         .unwrap()
         .await
         .unwrap();
     info!("[client] connected: addr={}", connection.remote_address());
-    // Dropping handles allows the corresponding objects to automatically shut down
+
+    // TODO: Send data
+
+    // Drop
     drop(connection);
-    // Make sure the server has a chance to clean up
+
+    // Cleanup
     endpoint.wait_idle().await;
 
     Ok(())
@@ -57,7 +54,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     let config: shared::ClientConfig = shared::config::parse_client_config(&args.config);
 
-    // server and client are running on the same thread asynchronously
     let addr = SocketAddr::new(IpAddr::V4(config.client.remote_addr), config.client.remote_port);
     run_client(addr).await?;
     Ok(())

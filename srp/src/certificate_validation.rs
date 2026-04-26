@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 
-// Implementation of `ServerCertVerifier` that verifies everything as trustworthy.
+// Implementation of `ServerCertVerifier` that verifies everything as trustworthy
 #[derive(Debug)]
 pub struct SkipServerVerification(Arc<rustls::crypto::CryptoProvider>);
 
