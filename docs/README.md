@@ -14,11 +14,23 @@ Expose self-hosted services to the internet via an external relay (hosted on a V
 
 ## Architecture
 
-client <-> relay <-> agent <-> your service
+srp consists of two parts, the binary deployed on a remote server (`srps`) and the "clients" (`srp`) that connect to it. These clients are not to be confused with the clients that want to connect to one of your services, which are proxied through srp.
+
+```mermaid
+flowchart LR
+    client --Request--> srps
+	srps <--QUIC-Tunnel--> srp
+    srp --Request--> service
+    service --Response--> srp
+    srps --Response--> client
+
+    srp --Heartbeats--> srps
+``` 
 
 ## Tech Stack
 
 - Rust
+- QUIC Protocol (using quinn crate)
 
 ## Deploy yourself
 
