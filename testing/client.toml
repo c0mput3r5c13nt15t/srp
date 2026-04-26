@@ -1,4 +1,4 @@
 [client]
-remote_addr="172.0.0.2"
+remote_addr="127.0.0.1"
 remote_port=7000
 endpoint_addr="web:443"

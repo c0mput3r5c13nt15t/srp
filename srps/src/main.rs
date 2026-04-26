@@ -51,6 +51,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let config: shared::ServerConfig = shared::config::parse_server_config(&args.config);
 
     let addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
-    tokio::spawn(run_server(addr));
+    run_server(addr).await;
     Ok(())
 }
