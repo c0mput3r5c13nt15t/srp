@@ -5,16 +5,34 @@ use std::{
     error::Error,
     net::{IpAddr, SocketAddr},
 };
+use tokio::net::TcpListener;
+use tokio::io::{copy};
 
 mod configuration;
 
 use configuration::make_server_endpoint;
 
 async fn open_unidirectional_stream(connection: Connection) -> anyhow::Result<()> {
-    let mut send = connection.open_uni().await?;
-    send.write_all(b"test").await?;
-    send.finish()?;
-    Ok(())
+    let listener = TcpListener::bind("127.0.0.1:8080").await?;
+    info!("[server] listening for traffic on 127.0.0.1:8080");
+
+    loop {
+        let (mut tcp_stream, _) = listener.accept().await?;
+        let connection = connection.clone();
+
+        tokio::spawn(async move {
+            let (mut send, mut recv) = connection.open_bi().await.unwrap();
+
+            let (mut tcp_read, mut tcp_write) = tcp_stream.split();
+
+            let client_to_quic = copy(&mut tcp_read, &mut send);
+            let quic_to_client = copy(&mut recv, &mut tcp_write);
+
+            tokio::try_join!(client_to_quic, quic_to_client).unwrap();
+
+            send.finish().unwrap();
+        });
+    }
 }
 
 async fn run_server(addr: SocketAddr) {
