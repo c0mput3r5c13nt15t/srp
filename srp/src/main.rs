@@ -18,7 +18,7 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
 
     rustls::crypto::ring::default_provider()
     .install_default()
-    .expect("failed to install crypto provider");
+    .expect("[client] failed to install crypto provider");
 
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(
         rustls::ClientConfig::builder()
@@ -38,22 +38,28 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
         .unwrap();
     info!("[client] connected: addr={}", connection.remote_address());
 
+    // TODO: Extract the following to function and add function for udp proxying
+
     loop {
         let (mut send, mut recv) = connection.accept_bi().await?;
 
         tokio::spawn(async move {
-            let mut tcp = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+            let mut tcp = TcpStream::connect("127.0.0.1:1234").await.unwrap(); // TODO: Make configurable
 
             let (mut tcp_read, mut tcp_write) = tcp.split();
 
-            let quic_to_tcp = copy(&mut recv, &mut tcp_write);
-            let tcp_to_quic = copy(&mut tcp_read, &mut send);
+            // TODO: Handle connection refused of tcp endpoint
 
-            tokio::try_join!(quic_to_tcp, tcp_to_quic).unwrap();
+            let srps_to_srp = copy(&mut recv, &mut tcp_write);
+            let srp_to_srps = copy(&mut tcp_read, &mut send);
+
+            tokio::try_join!(srps_to_srp, srp_to_srps).unwrap();
 
             let _ = send.finish();
         });
     }
+
+    // TODO: Fix error handling and clean connection quit
 
     // Drop
     drop(connection);

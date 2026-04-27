@@ -12,8 +12,8 @@ mod configuration;
 
 use configuration::make_server_endpoint;
 
-async fn open_unidirectional_stream(connection: Connection) -> anyhow::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
+async fn open_tcp_proxy_stream(connection: Connection) -> anyhow::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:8080").await?;  // TODO: Make configurable
     info!("[server] listening for traffic on 127.0.0.1:8080");
 
     loop {
@@ -25,15 +25,19 @@ async fn open_unidirectional_stream(connection: Connection) -> anyhow::Result<()
 
             let (mut tcp_read, mut tcp_write) = tcp_stream.split();
 
-            let client_to_quic = copy(&mut tcp_read, &mut send);
-            let quic_to_client = copy(&mut recv, &mut tcp_write);
+            let srps_to_srp = copy(&mut tcp_read, &mut send);
+            let srp_to_srps = copy(&mut recv, &mut tcp_write);
 
-            tokio::try_join!(client_to_quic, quic_to_client).unwrap();
+            tokio::try_join!(srps_to_srp, srp_to_srps).unwrap();
+
+            // TODO: Handle srp client disconnecting (and reconnecting)
 
             send.finish().unwrap();
         });
     }
 }
+
+// TODO: open_udp_proxy_stream
 
 async fn run_server(addr: SocketAddr) {
     let (endpoint, _server_cert) = make_server_endpoint(addr).unwrap();
@@ -53,7 +57,7 @@ async fn run_server(addr: SocketAddr) {
                                         connection.remote_address()
                                     );
 
-                                    if let Err(e) = open_unidirectional_stream(connection.clone()).await {
+                                    if let Err(e) = open_tcp_proxy_stream(connection.clone()).await {
                                         eprintln!("stream error: {:?}", e);
                                     }
 
