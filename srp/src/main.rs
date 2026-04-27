@@ -26,6 +26,7 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
     )?));
 
     endpoint.set_default_client_config(client_config);
+    info!("[client] connecting to srp server {}", server_addr);
 
     // Connect
     let connection = endpoint
@@ -35,7 +36,11 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
         .unwrap();
     info!("[client] connected: addr={}", connection.remote_address());
 
-    // TODO: Send data
+    // Receive data
+    while let Ok(mut recv) = connection.accept_uni().await {
+        // Because it is a unidirectional stream, we can only receive not send back.
+        println!("{:?}", recv.read_to_end(50).await?);
+    }
 
     // Drop
     drop(connection);
