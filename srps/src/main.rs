@@ -1,10 +1,10 @@
-use log::info;
+use log::{info,error};
 use quinn::Connection;
-use shared::{ClientConfigRequest, ServerConfigResponse};
-use tokio::signal;
+use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
+use tokio::{signal};
 use std::{
     error::Error,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, SocketAddr},
 };
 use tokio::net::TcpListener;
 use tokio::io::{copy};
@@ -13,7 +13,7 @@ mod configuration;
 
 use configuration::make_server_endpoint;
 
-async fn configure_client(connection: Connection) -> anyhow::Result<ClientConfigRequest> {
+async fn receive_configuration_from_client(connection: Connection) -> anyhow::Result<ClientConfigRequest> {
     match connection.accept_bi().await {
         Ok((mut send, mut recv)) => {
             let received_bytes = recv.read_to_end(usize::MAX).await?;
@@ -92,19 +92,24 @@ async fn run_server(bind_addr: SocketAddr) {
                                         connection.remote_address()
                                     );
 
-                                    configure_client(connection.clone()).await.unwrap();
+                                    let config: ClientConfigRequest = match receive_configuration_from_client(connection.clone()).await {
+                                        Ok(config) => config,
+                                        Err(e) => {
+                                            error!("failed to receive client config: {:#}", e);
+                                            return;
+                                        }
+                                    };
 
-                                    let expose_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080); // TODO: This config should be provided by the client
+                                    let expose_addr = SocketAddr::new(IpAddr::V4(config.expose_addr), config.expose_port);
 
-                                    let listener = TcpListener::bind(expose_addr).await.unwrap();
-                                    info!("[server] listening for traffic on {}", expose_addr);
+                                    if config.protocol == Protocol::Tcp {
+                                        let listener = TcpListener::bind(expose_addr).await.unwrap();
+                                        info!("[server] listening for traffic on {}", expose_addr);
 
-                                    if let Err(e) = proxy_tcp_stream(connection.clone(), listener).await {
-                                        eprintln!("stream error: {:?}", e);
+                                        if let Err(e) = proxy_tcp_stream(connection.clone(), listener).await {
+                                            error!("stream error: {:?}", e);
+                                        }
                                     }
-
-                                    // Keep connection alive until peer closes
-                                    connection.closed().await;
                                 }
                                 Err(e) => eprintln!("connection failed: {:?}", e),
                             }

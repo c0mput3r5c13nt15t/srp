@@ -146,6 +146,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let config_request = ClientConfigRequest {
         expose_addr: config.client.expose_addr,
         expose_port: config.client.expose_port,
+        protocol: config.client.protocol,
     };
 
     run_client(server_socket, endpoint_socket, config_request).await?;
