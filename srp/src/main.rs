@@ -3,17 +3,74 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
-use log::{info};
+use log::{error, info};
+use quinn::{Connection};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{Endpoint, ClientConfig};
-use tokio::net::TcpStream;
+use shared::{ClientConfigRequest, ServerConfigResponse};
+use tokio::{net::TcpStream};
 use tokio::io::copy;
 
 mod certificate_validation;
 
 use certificate_validation::SkipServerVerification;
 
-async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+async fn configure_server(connection: Connection, request: ClientConfigRequest) -> anyhow::Result<()> {
+    let (mut send, mut recv) = connection.open_bi().await?;
+
+    let request_bytes = serde_json::to_vec(&request)?;
+    send.write_all(&request_bytes).await?;
+    send.finish()?;
+
+    let received_bytes = recv.read_to_end(usize::MAX).await?;
+    let received: ServerConfigResponse = serde_json::from_slice(&received_bytes)?;
+
+    if received.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("server did not accept connection"))
+    }
+}
+
+async fn proxy_tcp_stream(connection: Connection, endpoint_addr: SocketAddr) -> anyhow::Result<()> {
+    loop {
+        let (send, recv) = connection.accept_bi().await?;
+
+        tokio::spawn(async move {
+            if let Err(e) = async {
+                let (mut send, mut recv) = (send, recv);
+
+                let tcp_stream = match TcpStream::connect(endpoint_addr).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("TCP connect failed: {:?}", e);
+
+                        let _ = send.reset(0u32.into());
+
+                        return Ok(());
+                    }
+                };
+
+                let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
+
+                let quic_to_tcp = copy(&mut recv, &mut tcp_write);
+                let tcp_to_quic = copy(&mut tcp_read, &mut send);
+
+                tokio::try_join!(quic_to_tcp, tcp_to_quic)?;
+
+                send.finish()?;
+
+                Ok::<(), anyhow::Error>(())
+            }
+            .await
+            {
+                eprintln!("Proxy error: {:?}", e);
+            }
+        });
+    }
+}
+
+async fn run_client(server_socket: SocketAddr, endpoint_socket: SocketAddr, config_request: ClientConfigRequest) -> anyhow::Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
@@ -28,41 +85,29 @@ async fn run_client(server_addr: SocketAddr) -> Result<(), Box<dyn Error + Send 
     )?));
 
     endpoint.set_default_client_config(client_config);
-    info!("[client] connecting to srp server {}", server_addr);
+    info!("[client] connecting to srp server {}", server_socket);
 
     // Connect
     let connection = endpoint
-        .connect(server_addr, "localhost")
+        .connect(server_socket, "localhost")
         .unwrap()
         .await
         .unwrap();
     info!("[client] connected: addr={}", connection.remote_address());
 
-    // TODO: Extract the following to function and add function for udp proxying
-
-    loop {
-        let (mut send, mut recv) = connection.accept_bi().await?;
-
-        tokio::spawn(async move {
-            let mut tcp = TcpStream::connect("127.0.0.1:1234").await.unwrap(); // TODO: Make configurable
-
-            let (mut tcp_read, mut tcp_write) = tcp.split();
-
-            // TODO: Handle connection refused of tcp endpoint
-
-            let srps_to_srp = copy(&mut recv, &mut tcp_write);
-            let srp_to_srps = copy(&mut tcp_read, &mut send);
-
-            tokio::try_join!(srps_to_srp, srp_to_srps).unwrap();
-
-            let _ = send.finish();
-        });
+    match configure_server(connection.clone(), config_request).await {
+        Ok(()) => {
+            info!("server configuration succeeded");
+        }
+        Err(e) => {
+            error!("[client] server configuration failed: {:#}", e);
+            return Err(e.into());
+        }
     }
 
-    // TODO: Fix error handling and clean connection quit
+    proxy_tcp_stream(connection.clone(), endpoint_socket).await?;
 
-    // Drop
-    drop(connection);
+    // TODO: Fix error handling and clean connection quit
 
     // Cleanup
     endpoint.wait_idle().await;
@@ -78,7 +123,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     let config: shared::ClientConfig = shared::config::parse_client_config(&args.config);
 
-    let addr = SocketAddr::new(IpAddr::V4(config.client.remote_addr), config.client.remote_port);
-    run_client(addr).await?;
+    let server_socket = SocketAddr::new(IpAddr::V4(config.client.server_addr), config.client.server_port);
+    let endpoint_socket = SocketAddr::new(IpAddr::V4(config.client.endpoint_addr), config.client.endpoint_port);
+
+    let config_request = ClientConfigRequest {
+        expose_addr: config.client.expose_addr,
+        expose_port: config.client.expose_port,
+    };
+
+    run_client(server_socket, endpoint_socket, config_request).await?;
     Ok(())
 }

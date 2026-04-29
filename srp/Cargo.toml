@@ -9,3 +9,5 @@ shared = { path = "../shared" }
 log = "0.4.29"
 quinn = "0.11"
 rustls = "0.23"
+anyhow = "1.0.102"
+serde_json = "1.0.149"

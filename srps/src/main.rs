@@ -1,9 +1,10 @@
 use log::info;
 use quinn::Connection;
+use shared::{ClientConfigRequest, ServerConfigResponse};
 use tokio::signal;
 use std::{
     error::Error,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 use tokio::net::TcpListener;
 use tokio::io::{copy};
@@ -12,36 +13,72 @@ mod configuration;
 
 use configuration::make_server_endpoint;
 
-async fn open_tcp_proxy_stream(connection: Connection) -> anyhow::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;  // TODO: Make configurable
-    info!("[server] listening for traffic on 127.0.0.1:8080");
-
+async fn configure_client(connection: Connection) -> anyhow::Result<ClientConfigRequest> {
     loop {
-        let (mut tcp_stream, _) = listener.accept().await?;
+        match connection.accept_bi().await {
+            Ok((mut send, mut recv)) => {
+                let received_bytes = recv.read_to_end(usize::MAX).await?;
+                let received: ClientConfigRequest =
+                    serde_json::from_slice(&received_bytes)?;
+
+                info!("{}:{}", received.expose_addr, received.expose_port);
+
+                // TODO: check config, e.g. if port is in use
+
+                let response = ServerConfigResponse {
+                    success: false,
+                };
+
+                let response_bytes = serde_json::to_vec(&response)?;
+                send.write_all(&response_bytes).await?;
+                send.finish()?;
+
+                return Ok(received);
+            }
+
+            Err(e) => {
+                // connection closed or fatal error
+                return Err(e.into());
+            }
+        }
+    }
+}
+
+async fn proxy_tcp_stream(connection: Connection, listener: TcpListener) -> anyhow::Result<()> {
+    loop {
+        let (tcp_stream, _) = listener.accept().await?;
         let connection = connection.clone();
 
         tokio::spawn(async move {
-            let (mut send, mut recv) = connection.open_bi().await.unwrap();
+            if let Err(e) = async {
+                // Open QUIC bidirectional stream
+                let (mut send, mut recv) = connection.open_bi().await?;
 
-            let (mut tcp_read, mut tcp_write) = tcp_stream.split();
+                let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
 
-            let srps_to_srp = copy(&mut tcp_read, &mut send);
-            let srp_to_srps = copy(&mut recv, &mut tcp_write);
+                let tcp_to_quic = copy(&mut tcp_read, &mut send);
+                let quic_to_tcp = copy(&mut recv, &mut tcp_write);
 
-            tokio::try_join!(srps_to_srp, srp_to_srps).unwrap();
+                tokio::try_join!(tcp_to_quic, quic_to_tcp)?;
 
-            // TODO: Handle srp client disconnecting (and reconnecting)
+                // Gracefully finish QUIC send side
+                send.finish()?;
 
-            send.finish().unwrap();
+                Ok::<(), anyhow::Error>(())
+            }
+            .await
+            {
+                eprintln!("Proxy error: {:?}", e);
+            }
         });
     }
 }
 
 // TODO: open_udp_proxy_stream
 
-async fn run_server(addr: SocketAddr) {
-    let (endpoint, _server_cert) = make_server_endpoint(addr).unwrap();
-    info!("[server] listening for srp clients on {}", addr);
+async fn run_server(bind_addr: SocketAddr) {
+    let (endpoint, _server_cert) = make_server_endpoint(bind_addr).unwrap();
+    info!("[server] listening for srp clients on {}", bind_addr);
 
     loop {
         tokio::select! {
@@ -57,7 +94,14 @@ async fn run_server(addr: SocketAddr) {
                                         connection.remote_address()
                                     );
 
-                                    if let Err(e) = open_tcp_proxy_stream(connection.clone()).await {
+                                    configure_client(connection.clone()).await.unwrap();
+
+                                    let expose_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080); // TODO: This config should be provided by the client
+
+                                    let listener = TcpListener::bind(expose_addr).await.unwrap();
+                                    info!("[server] listening for traffic on {}", expose_addr);
+
+                                    if let Err(e) = proxy_tcp_stream(connection.clone(), listener).await {
                                         eprintln!("stream error: {:?}", e);
                                     }
 
@@ -68,7 +112,7 @@ async fn run_server(addr: SocketAddr) {
                             }
                         });
                     }
-                    None => break, // endpoint closed
+                    _none => break, // endpoint closed
                 }
             }
 
@@ -91,7 +135,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 
     let config: shared::ServerConfig = shared::config::parse_server_config(&args.config);
 
-    let addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
-    run_server(addr).await;
+    let bind_addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
+    run_server(bind_addr).await;
     Ok(())
 }
