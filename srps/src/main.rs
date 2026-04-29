@@ -25,9 +25,7 @@ async fn configure_client(connection: Connection) -> anyhow::Result<ClientConfig
 
                 // TODO: check config, e.g. if port is in use
 
-                let response = ServerConfigResponse {
-                    success: false,
-                };
+                let response = ServerConfigResponse::error(String::from("address already in use"));
 
                 let response_bytes = serde_json::to_vec(&response)?;
                 send.write_all(&response_bytes).await?;

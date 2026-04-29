@@ -1,21 +1,24 @@
+use log::{error, info};
+use quinn::Connection;
+use quinn::crypto::rustls::QuicClientConfig;
+use quinn::{ClientConfig, Endpoint};
+use shared::{ClientConfigRequest, ServerConfigResponse};
 use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
-use log::{error, info};
-use quinn::{Connection};
-use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{Endpoint, ClientConfig};
-use shared::{ClientConfigRequest, ServerConfigResponse};
-use tokio::{net::TcpStream};
 use tokio::io::copy;
+use tokio::net::TcpStream;
 
 mod certificate_validation;
 
 use certificate_validation::SkipServerVerification;
 
-async fn configure_server(connection: Connection, request: ClientConfigRequest) -> anyhow::Result<()> {
+async fn configure_server(
+    connection: Connection,
+    request: ClientConfigRequest,
+) -> anyhow::Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let request_bytes = serde_json::to_vec(&request)?;
@@ -28,7 +31,11 @@ async fn configure_server(connection: Connection, request: ClientConfigRequest) 
     if received.success {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("server did not accept connection"))
+        Err(anyhow::anyhow!(
+            received
+                .error_message
+                .unwrap_or("unknown error".to_string())
+        ))
     }
 }
 
@@ -70,12 +77,16 @@ async fn proxy_tcp_stream(connection: Connection, endpoint_addr: SocketAddr) -> 
     }
 }
 
-async fn run_client(server_socket: SocketAddr, endpoint_socket: SocketAddr, config_request: ClientConfigRequest) -> anyhow::Result<(), Box<dyn Error + Send + Sync + 'static>> {
+async fn run_client(
+    server_socket: SocketAddr,
+    endpoint_socket: SocketAddr,
+    config_request: ClientConfigRequest,
+) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
-    .install_default()
-    .expect("[client] failed to install crypto provider");
+        .install_default()
+        .expect("[client] failed to install crypto provider");
 
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(
         rustls::ClientConfig::builder()
@@ -101,7 +112,7 @@ async fn run_client(server_socket: SocketAddr, endpoint_socket: SocketAddr, conf
         }
         Err(e) => {
             error!("[client] server configuration failed: {:#}", e);
-            return Err(e.into());
+            return Err(anyhow::anyhow!("server configuration failed: {:#}", e));
         }
     }
 
@@ -118,13 +129,19 @@ async fn run_client(server_socket: SocketAddr, endpoint_socket: SocketAddr, conf
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     shared::logger::init().unwrap();
-    
+
     let args = shared::Args::parse_args();
 
     let config: shared::ClientConfig = shared::config::parse_client_config(&args.config);
 
-    let server_socket = SocketAddr::new(IpAddr::V4(config.client.server_addr), config.client.server_port);
-    let endpoint_socket = SocketAddr::new(IpAddr::V4(config.client.endpoint_addr), config.client.endpoint_port);
+    let server_socket = SocketAddr::new(
+        IpAddr::V4(config.client.server_addr),
+        config.client.server_port,
+    );
+    let endpoint_socket = SocketAddr::new(
+        IpAddr::V4(config.client.endpoint_addr),
+        config.client.endpoint_port,
+    );
 
     let config_request = ClientConfigRequest {
         expose_addr: config.client.expose_addr,

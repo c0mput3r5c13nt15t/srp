@@ -15,6 +15,23 @@ pub struct ClientConfigRequest {
 #[derive(Serialize, Deserialize)]
 pub struct ServerConfigResponse {
    pub success: bool,
+   pub error_message: Option<String>,
+}
+
+impl ServerConfigResponse {
+    pub fn success() -> Self {
+        Self {
+            success: true,
+            error_message: None,
+        }
+    }
+
+    pub fn error(msg: String) -> Self {
+        Self {
+            success: false,
+            error_message: Some(msg),
+        }
+    }
 }
 
 #[derive(Deserialize)]
