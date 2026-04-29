@@ -8,7 +8,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
-use tokio::io::copy;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
 mod certificate_validation;
@@ -39,41 +39,55 @@ async fn configure_server(
     }
 }
 
+async fn handle_stream(
+    mut send: quinn::SendStream,
+    mut recv: quinn::RecvStream,
+    endpoint_addr: SocketAddr,
+) {
+    let result = async {
+        let tcp_stream = TcpStream::connect(endpoint_addr).await?;
+
+        let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
+
+        let quic_to_tcp = async {
+            tokio::io::copy(&mut recv, &mut tcp_write).await?;
+            tcp_write.shutdown().await
+        };
+
+        let tcp_to_quic = async {
+            tokio::io::copy(&mut tcp_read, &mut send).await?;
+            send.finish()?;
+            Ok::<_, std::io::Error>(())
+        };
+
+        tokio::try_join!(quic_to_tcp, tcp_to_quic)?;
+
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+
+    if let Err(e) = result {
+        eprintln!("Proxy error: {:?}", e);
+    }
+}
+
 async fn proxy_tcp_stream(connection: Connection, endpoint_addr: SocketAddr) -> anyhow::Result<()> {
     loop {
-        let (send, recv) = connection.accept_bi().await?;
-
-        tokio::spawn(async move {
-            if let Err(e) = async {
-                let (mut send, mut recv) = (send, recv);
-
-                let tcp_stream = match TcpStream::connect(endpoint_addr).await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        eprintln!("TCP connect failed: {:?}", e);
-
-                        let _ = send.reset(0u32.into());
-
-                        return Ok(());
-                    }
-                };
-
-                let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
-
-                let quic_to_tcp = copy(&mut recv, &mut tcp_write);
-                let tcp_to_quic = copy(&mut tcp_read, &mut send);
-
-                tokio::try_join!(quic_to_tcp, tcp_to_quic)?;
-
-                send.finish()?;
-
-                Ok::<(), anyhow::Error>(())
+        match connection.accept_bi().await {
+            Ok((send, recv)) => {
+                tokio::spawn(handle_stream(send, recv, endpoint_addr));
             }
-            .await
-            {
-                eprintln!("Proxy error: {:?}", e);
+            Err(e) => {
+                eprintln!("accept_bi failed: {:?}", e);
+
+                // If connection is still alive, continue
+                if connection.close_reason().is_none() {
+                    continue;
+                } else {
+                    break Ok(()); // connection actually closed
+                }
             }
-        });
+        }
     }
 }
 
