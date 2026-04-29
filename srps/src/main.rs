@@ -1,44 +1,51 @@
-use log::{info,error};
+use log::{error, info};
+use port_check::is_local_port_free;
 use quinn::Connection;
 use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
-use tokio::{signal};
 use std::{
     error::Error,
     net::{IpAddr, SocketAddr},
 };
+use tokio::io::copy;
 use tokio::net::TcpListener;
-use tokio::io::{copy};
+use tokio::signal;
 
 mod configuration;
 
 use configuration::make_server_endpoint;
 
-async fn receive_configuration_from_client(connection: Connection) -> anyhow::Result<ClientConfigRequest> {
+async fn receive_configuration_from_client(
+    connection: Connection,
+) -> anyhow::Result<ClientConfigRequest> {
     match connection.accept_bi().await {
         Ok((mut send, mut recv)) => {
             let received_bytes = recv.read_to_end(usize::MAX).await?;
-            let received: ClientConfigRequest =
-                serde_json::from_slice(&received_bytes)?;
+            let received: ClientConfigRequest = serde_json::from_slice(&received_bytes)?;
 
             info!("[server] client provided config: {:?}", received);
 
-            // TODO: check config, e.g. if port is in use
-
-            let response = ServerConfigResponse::success();
-
-            info!("[server] accepted client config");
+            // TODO: is there more config to check?
+            // TODO: Handle potential time-of-check to time-of-use (TOCTOU) issues?
+            let response = if !is_local_port_free(received.expose_port) {
+                ServerConfigResponse::error(String::from("port already taken"))
+            } else {
+                ServerConfigResponse::success()
+            };
 
             let response_bytes = serde_json::to_vec(&response)?;
             send.write_all(&response_bytes).await?;
             send.finish()?;
 
-            Ok(received)
+            if response.success {
+                Ok(received)
+            } else {
+                Err(anyhow::anyhow!(
+                    "[server] client config rejected: {}",
+                    response.error_message.unwrap_or_default()
+                ))
+            }
         }
-
-        Err(e) => {
-            // connection closed or fatal error
-            Err(e.into())
-        }
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -66,7 +73,7 @@ async fn proxy_tcp_stream(connection: Connection, listener: TcpListener) -> anyh
             }
             .await
             {
-                eprintln!("Proxy error: {:?}", e);
+                error!("Proxy error: {:?}", e);
             }
         });
     }
@@ -74,8 +81,14 @@ async fn proxy_tcp_stream(connection: Connection, listener: TcpListener) -> anyh
 
 // TODO: open_udp_proxy_stream
 
-async fn run_server(bind_addr: SocketAddr) {
-    let (endpoint, _server_cert) = make_server_endpoint(bind_addr).unwrap();
+async fn run_server(bind_addr: SocketAddr) -> anyhow::Result<()> {
+    let (endpoint, _server_cert) = match make_server_endpoint(bind_addr) {
+        Ok(res) => res,
+        Err(e) => {
+            error!("[server] error creating QUIC endpoint: {:#}", e);
+            return Err(e);
+        }
+    };
     info!("[server] listening for srp clients on {}", bind_addr);
 
     loop {
@@ -93,9 +106,12 @@ async fn run_server(bind_addr: SocketAddr) {
                                     );
 
                                     let config: ClientConfigRequest = match receive_configuration_from_client(connection.clone()).await {
-                                        Ok(config) => config,
+                                        Ok(config) => {
+                                            info!("[server] accepted client config");
+                                            config
+                                        },
                                         Err(e) => {
-                                            error!("failed to receive client config: {:#}", e);
+                                            error!("{:#}", e);
                                             return;
                                         }
                                     };
@@ -103,8 +119,16 @@ async fn run_server(bind_addr: SocketAddr) {
                                     let expose_addr = SocketAddr::new(IpAddr::V4(config.expose_addr), config.expose_port);
 
                                     if config.protocol == Protocol::Tcp {
-                                        let listener = TcpListener::bind(expose_addr).await.unwrap();
-                                        info!("[server] listening for traffic on {}", expose_addr);
+                                        let listener = match TcpListener::bind(expose_addr).await {
+                                            Ok(listener) => {
+                                                info!("[server] listening for traffic on {}", expose_addr);
+                                                listener
+                                            },
+                                            Err(e) => {
+                                                error!("[server] failed to create tcp listener: {:#}", e);
+                                                return;
+                                            }
+                                        };
 
                                         if let Err(e) = proxy_tcp_stream(connection.clone(), listener).await {
                                             error!("stream error: {:?}", e);
@@ -128,6 +152,8 @@ async fn run_server(bind_addr: SocketAddr) {
     }
 
     endpoint.wait_idle().await;
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -139,6 +165,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let config: shared::ServerConfig = shared::config::parse_server_config(&args.config);
 
     let bind_addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
-    run_server(bind_addr).await;
+    run_server(bind_addr).await?;
     Ok(())
 }
