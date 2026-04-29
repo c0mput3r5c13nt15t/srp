@@ -1,19 +1,23 @@
 use log::{error, info};
-use quinn::Connection;
 use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{ClientConfig, Endpoint};
+use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{ClientConfigRequest, ServerConfigResponse};
 use std::{
-    error::Error,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpStream;
+use tokio::{
+    io::AsyncWriteExt,
+    net::TcpStream,
+    signal,
+    task::JoinSet,
+};
+use tokio_util::sync::CancellationToken;
 
 mod certificate_validation;
-
 use certificate_validation::SkipServerVerification;
+
+const MAX_MSG_SIZE: usize = 64 * 1024;
 
 async fn configure_server(
     connection: Connection,
@@ -25,16 +29,14 @@ async fn configure_server(
     send.write_all(&request_bytes).await?;
     send.finish()?;
 
-    let received_bytes = recv.read_to_end(usize::MAX).await?;
-    let received: ServerConfigResponse = serde_json::from_slice(&received_bytes)?;
+    let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
+    let response: ServerConfigResponse = serde_json::from_slice(&response_bytes)?;
 
-    if received.success {
+    if response.success {
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            received
-                .error_message
-                .unwrap_or("unknown error".to_string())
+            response.error_message.unwrap_or_else(|| "unknown error".to_string())
         ))
     }
 }
@@ -45,17 +47,16 @@ async fn handle_stream(
     endpoint_addr: SocketAddr,
 ) {
     let result = async {
-        let tcp_stream = TcpStream::connect(endpoint_addr).await?;
-
-        let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
+        let tcp = TcpStream::connect(endpoint_addr).await?;
+        let (mut tcp_r, mut tcp_w) = tcp.into_split();
 
         let quic_to_tcp = async {
-            tokio::io::copy(&mut recv, &mut tcp_write).await?;
-            tcp_write.shutdown().await
+            tokio::io::copy(&mut recv, &mut tcp_w).await?;
+            tcp_w.shutdown().await
         };
 
         let tcp_to_quic = async {
-            tokio::io::copy(&mut tcp_read, &mut send).await?;
+            tokio::io::copy(&mut tcp_r, &mut send).await?;
             send.finish()?;
             Ok::<_, std::io::Error>(())
         };
@@ -67,91 +68,115 @@ async fn handle_stream(
     .await;
 
     if let Err(e) = result {
-        eprintln!("Proxy error: {:?}", e);
+        error!("[client stream] error: {e}");
     }
 }
 
-async fn proxy_tcp_stream(connection: Connection, endpoint_addr: SocketAddr) -> anyhow::Result<()> {
-    loop {
-        match connection.accept_bi().await {
-            Ok((send, recv)) => {
-                tokio::spawn(handle_stream(send, recv, endpoint_addr));
-            }
-            Err(e) => {
-                eprintln!("accept_bi failed: {:?}", e);
+async fn proxy_tcp_stream(
+    connection: Connection,
+    endpoint_addr: SocketAddr,
+    shutdown: CancellationToken,
+) -> anyhow::Result<()> {
+    let mut tasks = JoinSet::new();
 
-                // If connection is still alive, continue
-                if connection.close_reason().is_none() {
-                    continue;
-                } else {
-                    break Ok(()); // connection actually closed
-                }
+    loop {
+        tokio::select! {
+            _ = shutdown.cancelled() => {
+                info!("shutdown received, closing QUIC connection");
+                connection.close(0u32.into(), b"client shutdown".as_ref());
+                break;
+            }
+
+            accept = connection.accept_bi() => {
+                let (send, recv) = match accept {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("accept_bi error: {e}");
+                        break;
+                    }
+                };
+
+                let addr = endpoint_addr;
+
+                tasks.spawn(async move {
+                    handle_stream(send, recv, addr).await;
+                });
             }
         }
     }
+
+    while let Some(res) = tasks.join_next().await {
+        if let Err(e) = res {
+            error!("task join error: {e}");
+        }
+    }
+
+    Ok(())
 }
 
 async fn run_client(
     server_socket: SocketAddr,
     endpoint_socket: SocketAddr,
     config_request: ClientConfigRequest,
+    shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
-    let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
+    let mut endpoint =
+        Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
         .install_default()
-        .expect("[client] failed to install crypto provider");
+        .expect("crypto provider failed");
 
-    let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(
-        rustls::ClientConfig::builder()
-            .dangerous()
-            .with_custom_certificate_verifier(SkipServerVerification::new())
-            .with_no_client_auth(),
-    )?));
+    let client_config = ClientConfig::new(Arc::new(
+        QuicClientConfig::try_from(
+            rustls::ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(SkipServerVerification::new())
+                .with_no_client_auth(),
+        )?,
+    ));
 
     endpoint.set_default_client_config(client_config);
-    info!("[client] connecting to srp server {}", server_socket);
 
-    // Connect
+    info!("connecting to {server_socket}");
+
     let connection = endpoint
-        .connect(server_socket, "localhost")
-        .unwrap()
-        .await
-        .unwrap();
-    info!("[client] connected: addr={}", connection.remote_address());
+        .connect(server_socket, "localhost")?
+        .await?;
 
-    match configure_server(connection.clone(), config_request).await {
-        Ok(()) => {
-            info!("[client] server configuration succeeded");
+    info!("connected to {}", connection.remote_address());
+
+    configure_server(connection.clone(), config_request).await?;
+
+    info!("server configuration succeeded");
+
+    tokio::select! {
+        _ = shutdown.cancelled() => {
+            info!("shutdown before proxy start");
+            connection.close(0u32.into(), b"shutdown");
         }
-        Err(e) => {
-            error!("[client] server configuration failed: {:#}", e);
-            return Err(anyhow::anyhow!("server configuration failed: {:#}", e));
+
+        res = proxy_tcp_stream(connection.clone(), endpoint_socket, shutdown.clone()) => {
+            res?;
         }
     }
 
-    proxy_tcp_stream(connection.clone(), endpoint_socket).await?;
-
-    // TODO: Fix error handling and clean connection quit
-
-    // Cleanup
     endpoint.wait_idle().await;
-
     Ok(())
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     shared::logger::init().unwrap();
 
     let args = shared::Args::parse_args();
-
-    let config: shared::ClientConfig = shared::config::parse_client_config(&args.config);
+    let config = shared::config::parse_client_config(&args.config);
 
     let server_socket = SocketAddr::new(
         IpAddr::V4(config.client.server_addr),
         config.client.server_port,
     );
+
     let endpoint_socket = SocketAddr::new(
         IpAddr::V4(config.client.endpoint_addr),
         config.client.endpoint_port,
@@ -163,6 +188,22 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         protocol: config.client.protocol,
     };
 
-    run_client(server_socket, endpoint_socket, config_request).await?;
+    let shutdown = CancellationToken::new();
+    let shutdown_clone = shutdown.clone();
+
+    tokio::spawn(async move {
+        let _ = signal::ctrl_c().await;
+        info!("ctrl+c received");
+        shutdown_clone.cancel();
+    });
+
+    run_client(
+        server_socket,
+        endpoint_socket,
+        config_request,
+        shutdown,
+    )
+    .await?;
+
     Ok(())
 }
