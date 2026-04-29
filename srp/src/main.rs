@@ -108,7 +108,7 @@ async fn run_client(
 
     match configure_server(connection.clone(), config_request).await {
         Ok(()) => {
-            info!("server configuration succeeded");
+            info!("[client] server configuration succeeded");
         }
         Err(e) => {
             error!("[client] server configuration failed: {:#}", e);

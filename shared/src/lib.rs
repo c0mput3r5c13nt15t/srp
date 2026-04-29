@@ -6,13 +6,13 @@ use clap::Parser;
 use std::net::Ipv4Addr;
 
 // The request of the client made to the server with details about the config
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ClientConfigRequest {
    pub expose_addr: Ipv4Addr,
    pub expose_port: u16,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ServerConfigResponse {
    pub success: bool,
    pub error_message: Option<String>,

@@ -14,30 +14,30 @@ mod configuration;
 use configuration::make_server_endpoint;
 
 async fn configure_client(connection: Connection) -> anyhow::Result<ClientConfigRequest> {
-    loop {
-        match connection.accept_bi().await {
-            Ok((mut send, mut recv)) => {
-                let received_bytes = recv.read_to_end(usize::MAX).await?;
-                let received: ClientConfigRequest =
-                    serde_json::from_slice(&received_bytes)?;
+    match connection.accept_bi().await {
+        Ok((mut send, mut recv)) => {
+            let received_bytes = recv.read_to_end(usize::MAX).await?;
+            let received: ClientConfigRequest =
+                serde_json::from_slice(&received_bytes)?;
 
-                info!("{}:{}", received.expose_addr, received.expose_port);
+            info!("[server] client provided config: {:?}", received);
 
-                // TODO: check config, e.g. if port is in use
+            // TODO: check config, e.g. if port is in use
 
-                let response = ServerConfigResponse::error(String::from("address already in use"));
+            let response = ServerConfigResponse::success();
 
-                let response_bytes = serde_json::to_vec(&response)?;
-                send.write_all(&response_bytes).await?;
-                send.finish()?;
+            info!("[server] accepted client config");
 
-                return Ok(received);
-            }
+            let response_bytes = serde_json::to_vec(&response)?;
+            send.write_all(&response_bytes).await?;
+            send.finish()?;
 
-            Err(e) => {
-                // connection closed or fatal error
-                return Err(e.into());
-            }
+            Ok(received)
+        }
+
+        Err(e) => {
+            // connection closed or fatal error
+            Err(e.into())
         }
     }
 }
