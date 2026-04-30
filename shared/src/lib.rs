@@ -50,7 +50,7 @@ pub struct ServerConfig {
 #[derive(Deserialize)]
 pub struct Server {
    pub bind_addr: Ipv4Addr,
-   pub bind_port: u16
+   pub bind_port: u16,
    // heartbeat_interval: Option<u16>,
 }
 
