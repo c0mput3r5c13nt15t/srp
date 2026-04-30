@@ -5,7 +5,10 @@ use serde::{Serialize, Deserialize};
 use clap::Parser;
 use std::net::Ipv4Addr;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub const MAX_CONFIG_SIZE: usize = 64 * 1024;
+pub const MAX_MSG_SIZE: usize = 64 * 1024;
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Tcp,
@@ -13,7 +16,7 @@ pub enum Protocol {
 }
 
 // The request of the client made to the server with details about the config
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct ClientConfigRequest {
    pub expose_addr: Ipv4Addr,
    pub expose_port: u16,

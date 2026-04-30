@@ -1,15 +1,13 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
+use shared::{ClientConfigRequest, Protocol, ServerConfigResponse, MAX_CONFIG_SIZE};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{net::TcpListener, signal, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 mod configuration;
 use configuration::make_server_endpoint;
-
-const MAX_CONFIG_SIZE: usize = 64 * 1024;
 
 async fn receive_configuration_from_client(
     connection: Connection,
