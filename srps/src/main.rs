@@ -176,6 +176,9 @@ async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyho
                                 ).await {
                                     error!("proxy error: {e:?}");
                                 }
+                            } else {
+                                error!("udp tunnels not yet implemented");
+                                info!("connection aborted");
                             }
                         }
 
