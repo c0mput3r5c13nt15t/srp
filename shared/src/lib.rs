@@ -63,7 +63,7 @@ pub struct ClientConfig {
 pub struct Client {
    pub server_addr: Ipv4Addr,
    pub server_port: u16,
-   pub endpoint_addr: Ipv4Addr, // Fix: In Docker can be the name of a container
+   pub endpoint_addr: Ipv4Addr, // TODO: Fix: In Docker containers are often identified by names not IPs -> needs to work with those as well
    pub endpoint_port: u16,
    pub expose_addr: Ipv4Addr,
    pub expose_port: u16,
