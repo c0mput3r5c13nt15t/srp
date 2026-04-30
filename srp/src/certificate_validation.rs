@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use std::sync::Arc;
 
 // Implementation of `ServerCertVerifier` that verifies everything as trustworthy
 #[derive(Debug)]

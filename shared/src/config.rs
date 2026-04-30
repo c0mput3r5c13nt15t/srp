@@ -1,8 +1,8 @@
-use std::io;
 use std::fs;
+use std::io;
 
-use crate::ServerConfig;
 use crate::ClientConfig;
+use crate::ServerConfig;
 
 fn read_file(file_name: &str) -> io::Result<String> {
     let content = fs::read_to_string(file_name)?;

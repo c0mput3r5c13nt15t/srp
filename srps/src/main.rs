@@ -1,7 +1,7 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ClientConfigRequest, Protocol, ServerConfigResponse, MAX_CONFIG_SIZE};
+use shared::{ClientConfigRequest, MAX_CONFIG_SIZE, Protocol, ServerConfigResponse};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{net::TcpListener, signal, task::JoinSet};
 use tokio_util::sync::CancellationToken;

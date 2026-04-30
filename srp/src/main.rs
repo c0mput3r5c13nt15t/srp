@@ -1,4 +1,4 @@
-use log::{info};
+use log::info;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
