@@ -19,7 +19,7 @@ srp consists of two parts, the binary deployed on a remote server (`srps`) and t
 ```mermaid
 flowchart LR
     client --Request--> srps
-	srps <--QUIC-Tunnel--> srp
+    srps <--QUIC-Tunnel--> srp
     srp --Request--> service
     service --Response--> srp
     srps --Response--> client
