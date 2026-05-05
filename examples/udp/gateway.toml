@@ -1,3 +1,4 @@
 [gateway]
 bind_addr="127.0.0.1"
 bind_port=7000
+preshared_secret="abc"

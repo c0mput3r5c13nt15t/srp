@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
+use shared::{AuthRequest, GatewayConfigResponse, Protocol, ProxyConfigRequest};
 use std::path::Path;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -22,7 +22,7 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn configure_server(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
+async fn configure_gateway(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let request_bytes = serde_json::to_vec(&request)?;
@@ -47,11 +47,35 @@ async fn configure_server(connection: Connection, request: ProxyConfigRequest) -
     }
 }
 
+async fn authenticate_to_gateway(
+    connection: Connection,
+    preshared_secret: String,
+) -> anyhow::Result<()> {
+    let (mut send, mut recv) = connection.open_bi().await?;
+
+    let auth_req = AuthRequest { preshared_secret };
+    let req_bytes = serde_json::to_vec(&auth_req)?;
+    send.write_all(&req_bytes).await?;
+    send.finish()?;
+
+    let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
+    let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
+
+    if response.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(response.error_message.unwrap_or_else(
+            || "Authentication to Gateway failed".to_string()
+        )))
+    }
+}
+
 pub async fn run_proxy(
     gateway_socket: SocketAddr,
     app_socket: SocketAddr,
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
+    preshared_secret: String,
 ) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -74,9 +98,13 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
+    
+    authenticate_to_gateway(connection.clone(), preshared_secret).await?;
+    
+    info!("successfully authenticated to gateway");
     info!("configuring gateway via config request");
 
-    configure_server(connection.clone(), config_request).await?;
+    configure_gateway(connection.clone(), config_request).await?;
 
     info!("gateway configuration succeeded");
 
@@ -148,12 +176,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
+    let preshared_secret = config.proxy.preshared_secret;
+
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         info!("ctrl+c received");
         shutdown_clone.cancel();
     });
 
-    run_proxy(gateway_socket, app_socket, config_request, shutdown).await?;
+    run_proxy(
+        gateway_socket,
+        app_socket,
+        config_request,
+        shutdown,
+        preshared_secret
+    )
+    .await?;
     Ok(())
 }
