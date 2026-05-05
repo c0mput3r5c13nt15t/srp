@@ -1,3 +1,4 @@
 [gateway]
 bind_addr="172.25.0.2"
 bind_port=7000
+preshared_secret="abc"
