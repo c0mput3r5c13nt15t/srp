@@ -6,3 +6,4 @@ endpoint_port=1234
 expose_addr="0.0.0.0"
 expose_port=8080
 protocol="tcp"
+preshared_secret="abc"
