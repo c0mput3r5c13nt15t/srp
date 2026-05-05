@@ -18,6 +18,8 @@ mod proxy_tcp;
 use proxy_tcp::proxy_tcp_stream;
 
 mod proxy_udp;
+mod healthchecks;
+
 use proxy_udp::proxy_udp_stream;
 
 async fn configure_server(
