@@ -1,7 +1,7 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ProxyConfigRequest, MAX_CONFIG_SIZE, Protocol, GatewayConfigResponse};
+use shared::{ProxyConfigRequest, MAX_CONFIG_SIZE, Protocol, GatewayConfigResponse, AuthRequest};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{
     net::{TcpListener, UdpSocket},
@@ -18,6 +18,44 @@ use proxy_tcp::proxy_tcp_stream;
 
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
+
+async fn authenticate_proxy(
+    connection: Connection,
+    preshared_secret: &String,
+) -> anyhow::Result<()>{
+    let (mut send, mut recv) = connection
+    .accept_bi()
+    .await
+    .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
+
+    let bytes = recv
+    .read_to_end(MAX_CONFIG_SIZE)
+    .await
+    .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
+
+    let auth_req: AuthRequest = serde_json::from_slice(&bytes).map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
+
+    let accept_secret = if &auth_req.preshared_secret == preshared_secret {
+        info!("Client {} authenticated successfully", connection.remote_address());
+        ServerConfigResponse::success()
+    } else {
+        ServerConfigResponse::error(String::from("Failed to Authenticate Client"))
+    };
+
+    let resp_bytes = serde_json::to_vec(&accept_secret)?;
+
+    send.write_all(&resp_bytes).await?;
+    send.finish()?;
+
+    if accept_secret.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "client secret rejected: {}",
+            accept_secret.error_message.unwrap_or_default()
+        ))
+    }
+}
 
 async fn receive_configuration_from_proxy(
     connection: Connection,
@@ -64,7 +102,7 @@ async fn receive_configuration_from_proxy(
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, preshared_secret: String) -> anyhow::Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
@@ -85,12 +123,21 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
                 };
 
                 let shutdown = shutdown.clone();
+                let preshared_secret = preshared_secret.clone();
 
                 tasks.spawn(async move {
                     match connecting.await {
                         Ok(connection) => {
                             info!("connection from {}", connection.remote_address());
 
+                            match authenticate_proxy(connection.clone(), &preshared_secret).await {
+                                Ok(_) => {
+                                }
+                                Err(e) => {
+                                    error!("authentication error: {e}");
+                                    return;
+                                }
+                            }
                             let config = match receive_configuration_from_proxy(connection.clone()).await {
                                 Ok(c) => c,
                                 Err(e) => {
@@ -103,6 +150,7 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
                                 IpAddr::V4(config.expose_addr),
                                 config.expose_port,
                             );
+
 
                             if config.protocol == Protocol::Tcp {
                                 let listener = match TcpListener::bind(addr).await {
@@ -180,6 +228,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown_clone.cancel();
     });
 
-    run_gateway(bind_socket, shutdown).await?;
+    let preshared_secret = config.gateway.preshared_secret.clone();
+
+    run_gateway(bind_socket, shutdown, preshared_secret).await?;
     Ok(())
 }
