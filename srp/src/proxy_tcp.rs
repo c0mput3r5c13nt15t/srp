@@ -31,7 +31,7 @@ async fn handle_tcp_stream(
     .await;
 
     if let Err(e) = result {
-        error!("[client stream] error: {e}");
+        error!("[tcp client stream] error: {e}");
     }
 }
 
