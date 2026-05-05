@@ -1,3 +1,4 @@
 [server]
 bind_addr="0.0.0.0"
 bind_port=7000
+preshared_secret="abc"
