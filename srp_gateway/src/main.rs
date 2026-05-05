@@ -1,7 +1,7 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ProxyConfigRequest, MAX_CONFIG_SIZE, Protocol, GatewayConfigResponse, AuthRequest};
+use shared::{AuthRequest, GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{
     net::{TcpListener, UdpSocket},
@@ -22,21 +22,25 @@ use proxy_udp::proxy_udp_stream;
 async fn authenticate_proxy(
     connection: Connection,
     preshared_secret: &String,
-) -> anyhow::Result<()>{
+) -> anyhow::Result<()> {
     let (mut send, mut recv) = connection
-    .accept_bi()
-    .await
-    .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
+        .accept_bi()
+        .await
+        .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
 
     let bytes = recv
-    .read_to_end(MAX_CONFIG_SIZE)
-    .await
-    .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
+        .read_to_end(MAX_CONFIG_SIZE)
+        .await
+        .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
 
-    let auth_req: AuthRequest = serde_json::from_slice(&bytes).map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
+    let auth_req: AuthRequest = serde_json::from_slice(&bytes)
+        .map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
 
     let accept_secret = if &auth_req.preshared_secret == preshared_secret {
-        info!("Client {} authenticated successfully", connection.remote_address());
+        info!(
+            "Client {} authenticated successfully",
+            connection.remote_address()
+        );
         ServerConfigResponse::success()
     } else {
         ServerConfigResponse::error(String::from("Failed to Authenticate Client"))
