@@ -1,0 +1,8 @@
+[client]
+server_addr="127.0.0.1"
+server_port=7000
+endpoint_addr="127.0.0.1"
+endpoint_port=1234
+expose_addr="0.0.0.0"
+expose_port=8080
+protocol="udp"
