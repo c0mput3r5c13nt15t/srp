@@ -55,4 +55,28 @@ impl healthcheck_client {
             .error_for_status()?;
         Ok(())
     }
+
+    pub async fn start_period<F, Fut>(
+        self,
+        interval_secs: u64,
+        is_healthy: F,
+    ) where
+        F: Fn() -> Fut + Send + 'static,
+        Fut: Future<Output = bool> + Send,
+    {
+        let mut interval = time::interval(Duration::from_secs(interval_secs));
+        loop{
+            interval.tick().await;
+            if is_healthy().await {
+                if let Err(e) = self.success().await{
+                    eprintln!("healthcheck failed: {e}");
+                }
+            }
+            else {
+                if let Err(e) = self.fail().await {
+                    eprintln!("healthcheck fail-ping was sent: {e}");
+                }
+            }
+        }
+    }
 }
