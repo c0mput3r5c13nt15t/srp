@@ -3,11 +3,21 @@ use port_check::is_local_port_free;
 use quinn::Connection;
 use shared::{ClientConfigRequest, MAX_CONFIG_SIZE, Protocol, ServerConfigResponse};
 use std::net::{IpAddr, SocketAddr};
-use tokio::{net::TcpListener, signal, task::JoinSet};
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    signal,
+    task::JoinSet,
+};
 use tokio_util::sync::CancellationToken;
 
 mod configuration;
 use configuration::make_server_endpoint;
+
+mod proxy_tcp;
+use proxy_tcp::proxy_tcp_stream;
+
+mod proxy_udp;
+use proxy_udp::proxy_udp_stream;
 
 async fn receive_configuration_from_client(
     connection: Connection,
@@ -48,79 +58,11 @@ async fn receive_configuration_from_client(
     }
 }
 
-async fn proxy_tcp_stream(
-    connection: Connection,
-    listener: TcpListener,
-    shutdown: CancellationToken,
-) -> anyhow::Result<()> {
-    let mut tasks = JoinSet::new();
-
-    loop {
-        tokio::select! {
-            // 1. Explicit shutdown (Ctrl+C)
-            _ = shutdown.cancelled() => {
-                info!("[stream] shutdown received (token)");
-                connection.close(0u32.into(), b"shutdown".as_ref());
-                break;
-            }
-
-            // 2. QUIC connection closed by peer
-            _ = connection.closed() => {
-                info!("[stream] shutdown received (connection closed)");
-                break;
-            }
-
-            // 3. Accept TCP connections
-            accept = listener.accept() => {
-                let (tcp_stream, _) = match accept {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("[stream] accept error: {e}");
-                        continue;
-                    }
-                };
-
-                let conn = connection.clone();
-
-                tasks.spawn(async move {
-                    let result = async {
-                        let (mut send, mut recv) = conn.open_bi().await?;
-
-                        let (mut r, mut w) = tcp_stream.into_split();
-
-                        let up = tokio::io::copy(&mut r, &mut send);
-                        let down = tokio::io::copy(&mut recv, &mut w);
-
-                        tokio::try_join!(up, down)?;
-
-                        send.finish()?;
-                        Ok::<(), anyhow::Error>(())
-                    }
-                    .await;
-
-                    if let Err(e) = result {
-                        error!("[stream tasks] error: {e:?}");
-                    }
-                });
-            }
-        }
-    }
-
-    // 4. Drain all active stream tasks
-    while let Some(res) = tasks.join_next().await {
-        if let Err(e) = res {
-            error!("[stream] task join error: {e:?}");
-        }
-    }
-
-    Ok(())
-}
-
 async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
     let (endpoint, _cert) = make_server_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
-    info!("listening on {bind_addr}");
+    info!("listening for clients on {bind_addr}/quic");
 
     let mut tasks = JoinSet::new();
 
@@ -165,18 +107,33 @@ async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyho
                                     }
                                 };
 
-                                info!("listening on {}", addr);
+                                info!("listening on {}/tcp", addr);
 
                                 if let Err(e) = proxy_tcp_stream(
                                     connection,
                                     listener,
                                     shutdown,
                                 ).await {
-                                    error!("proxy error: {e:?}");
+                                    error!("tcp proxy error: {e:?}");
                                 }
                             } else {
-                                error!("udp tunnels not yet implemented");
-                                info!("connection aborted");
+                                let listener = match UdpSocket::bind(addr).await {
+                                    Ok(l) => l,
+                                    Err(e) => {
+                                        error!("bind failed {}: {e}", addr);
+                                        return;
+                                    }
+                                };
+
+                                info!("listening on {}/udp", addr);
+
+                                if let Err(e) = proxy_udp_stream(
+                                    connection,
+                                    listener,
+                                    shutdown,
+                                ).await {
+                                    error!("udp proxy error: {e:?}");
+                                }
                             }
                         }
 

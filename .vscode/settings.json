@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "Caddyfile",
+        "datagram",
         "QUIC",
         "serde",
         "srps"
