@@ -23,6 +23,12 @@ pub struct ClientConfigRequest {
     pub protocol: Protocol,
 }
 
+//The request a client makes when trying to authenticate
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AuthRequest {
+    pub preshared_secret: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerConfigResponse {
     pub success: bool,
@@ -54,6 +60,7 @@ pub struct ServerConfig {
 pub struct Server {
     pub bind_addr: Ipv4Addr,
     pub bind_port: u16,
+    pub preshared_secret: String,
     // heartbeat_interval: Option<u16>,
 }
 
@@ -71,6 +78,7 @@ pub struct Client {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
+    pub preshared_secret: String,
 }
 
 #[derive(Parser, Debug)]

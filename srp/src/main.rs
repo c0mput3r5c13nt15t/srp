@@ -1,7 +1,7 @@
 use log::info;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
+use shared::{AuthRequest, ClientConfigRequest, Protocol, ServerConfigResponse};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -44,11 +44,37 @@ async fn configure_server(
     }
 }
 
+async fn authenticate_to_server(
+    connection: Connection,
+    preshared_secret:String
+)-> anyhow::Result<()>{
+    let (mut send, mut recv) = connection.open_bi().await?;
+
+    let auth_req = AuthRequest { preshared_secret };
+    let req_bytes = serde_json::to_vec(&auth_req)?;
+    send.write_all(&req_bytes).await?;
+    send.finish()?;
+
+    let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
+    let response: ServerConfigResponse = serde_json::from_slice(&response_bytes)?;
+
+    if response.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            response
+                .error_message
+                .unwrap_or_else(|| "Authentication to Server failed".to_string())
+        ))
+    }
+}
+
 pub async fn run_client(
     server_socket: SocketAddr,
     endpoint_socket: SocketAddr,
     config_request: ClientConfigRequest,
     shutdown: CancellationToken,
+    preshared_secret:String,
 ) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -70,6 +96,10 @@ pub async fn run_client(
     let connection = endpoint.connect(server_socket, "localhost")?.await?;
 
     info!("connected to {}", connection.remote_address());
+
+    authenticate_to_server(connection.clone(), preshared_secret).await?;
+
+    info!("sucessfully authenticated to server");
 
     configure_server(connection.clone(), config_request).await?;
 
@@ -124,6 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
+    let preshared_secret = config.client.preshared_secret;
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
@@ -131,7 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         shutdown_clone.cancel();
     });
 
-    run_client(server_socket, endpoint_socket, config_request, shutdown).await?;
+    run_client(server_socket, endpoint_socket, config_request, shutdown, preshared_secret).await?;
 
     Ok(())
 }
