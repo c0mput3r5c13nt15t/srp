@@ -1,5 +1,7 @@
 name: Rust
-
+permissions:
+  contents: read # Globally allow reading the repository contents
+  
 on: [push, pull_request]
 
 env:
