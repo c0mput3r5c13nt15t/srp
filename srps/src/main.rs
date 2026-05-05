@@ -1,7 +1,7 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ClientConfigRequest, MAX_CONFIG_SIZE, Protocol, ServerConfigResponse, AuthRequest};
+use shared::{AuthRequest, ClientConfigRequest, MAX_CONFIG_SIZE, Protocol, ServerConfigResponse};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{net::TcpListener, signal, task::JoinSet};
 use tokio_util::sync::CancellationToken;
@@ -12,21 +12,25 @@ use configuration::make_server_endpoint;
 async fn authenticate_client(
     connection: Connection,
     preshared_secret: &String,
-) -> anyhow::Result<()>{
+) -> anyhow::Result<()> {
     let (mut send, mut recv) = connection
-    .accept_bi()
-    .await
-    .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
+        .accept_bi()
+        .await
+        .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
 
     let bytes = recv
-    .read_to_end(MAX_CONFIG_SIZE)
-    .await
-    .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
+        .read_to_end(MAX_CONFIG_SIZE)
+        .await
+        .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
 
-    let auth_req: AuthRequest = serde_json::from_slice(&bytes).map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
+    let auth_req: AuthRequest = serde_json::from_slice(&bytes)
+        .map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
 
     let accept_secret = if &auth_req.preshared_secret == preshared_secret {
-        info!("Client {} authenticated successfully", connection.remote_address());
+        info!(
+            "Client {} authenticated successfully",
+            connection.remote_address()
+        );
         ServerConfigResponse::success()
     } else {
         ServerConfigResponse::error(String::from("Failed to Authenticate Client"))
@@ -154,7 +158,11 @@ async fn proxy_tcp_stream(
     Ok(())
 }
 
-async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken, preshared_secret: String) -> anyhow::Result<()> {
+async fn run_server(
+    bind_addr: SocketAddr,
+    shutdown: CancellationToken,
+    preshared_secret: String,
+) -> anyhow::Result<()> {
     let (endpoint, _cert) = make_server_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 

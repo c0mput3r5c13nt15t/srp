@@ -46,8 +46,8 @@ async fn configure_server(
 
 async fn authenticate_to_server(
     connection: Connection,
-    preshared_secret:String
-)-> anyhow::Result<()>{
+    preshared_secret: String,
+) -> anyhow::Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let auth_req = AuthRequest { preshared_secret };
@@ -61,11 +61,9 @@ async fn authenticate_to_server(
     if response.success {
         Ok(())
     } else {
-        Err(anyhow::anyhow!(
-            response
-                .error_message
-                .unwrap_or_else(|| "Authentication to Server failed".to_string())
-        ))
+        Err(anyhow::anyhow!(response.error_message.unwrap_or_else(
+            || "Authentication to Server failed".to_string()
+        )))
     }
 }
 
@@ -74,7 +72,7 @@ pub async fn run_client(
     endpoint_socket: SocketAddr,
     config_request: ClientConfigRequest,
     shutdown: CancellationToken,
-    preshared_secret:String,
+    preshared_secret: String,
 ) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -99,7 +97,7 @@ pub async fn run_client(
 
     authenticate_to_server(connection.clone(), preshared_secret).await?;
 
-    info!("sucessfully authenticated to server");
+    info!("successfully authenticated to server");
 
     configure_server(connection.clone(), config_request).await?;
 
@@ -162,7 +160,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         shutdown_clone.cancel();
     });
 
-    run_client(server_socket, endpoint_socket, config_request, shutdown, preshared_secret).await?;
+    run_client(
+        server_socket,
+        endpoint_socket,
+        config_request,
+        shutdown,
+        preshared_secret,
+    )
+    .await?;
 
     Ok(())
 }
