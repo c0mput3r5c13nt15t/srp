@@ -20,4 +20,39 @@ impl healthcheck_client {
         }
     }
 
+    pub async fn success(&self) -> anyhow::Result<()>{
+        self.http
+            .get(format!("{}/{}", self.base_url, self.uuid))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn start(&self) -> anyhow::Result<()>{
+        self.http
+            .get(format!("{}/{}/start", self.base_url, self.uuid))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> anyhow::Result<()>{
+        self.http
+            .get(format!("{}/{}/stop", self.base_url, self.uuid))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn fail(&self) -> anyhow::Result<()>{
+        self.http
+            .get(format!("{}/{}/fail", self.base_url, self.uuid))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
 }
