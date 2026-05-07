@@ -18,7 +18,9 @@ mod proxy_tcp;
 use proxy_tcp::proxy_tcp_stream;
 
 mod proxy_udp;
+mod healthchecks;
 use proxy_udp::proxy_udp_stream;
+use crate::healthchecks::healthcheck_client;
 
 async fn configure_server(
     connection: Connection,
@@ -106,6 +108,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let args = shared::Args::parse_args();
     let config = shared::config::parse_client_config(&args.config);
 
+    let hc = healthcheck_client::new(
+        "http://pls.config.me",
+        "uuid here pls"
+    );
+    hc.start().await.ok();
+
     let server_socket = SocketAddr::new(
         IpAddr::V4(config.client.server_addr),
         config.client.server_port,
@@ -122,6 +130,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         protocol: config.client.protocol,
     };
 
+    
+
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
 
@@ -132,6 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     });
 
     run_client(server_socket, endpoint_socket, config_request, shutdown).await?;
+
+    hc.stop().await.ok();
 
     Ok(())
 }
