@@ -1,5 +1,5 @@
 [package]
-name = "srp"
+name = "srp_gateway"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,6 +9,8 @@ shared = { path = "../shared" }
 log = "0.4.29"
 quinn = "0.11"
 rustls = "0.23"
+rcgen = "0.14.7"
 anyhow = "1.0.102"
 serde_json = "1.0.149"
+port_check = "0.3.0"
 tokio-util = "0.7.18"

@@ -15,21 +15,21 @@ pub enum Protocol {
     Udp,
 }
 
-// The request of the client made to the server with details about the config
+// The request of the proxy made to the gateway with details about the config
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
-pub struct ClientConfigRequest {
+pub struct ProxyConfigRequest {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ServerConfigResponse {
+pub struct GatewayConfigResponse {
     pub success: bool,
     pub error_message: Option<String>,
 }
 
-impl ServerConfigResponse {
+impl GatewayConfigResponse {
     pub fn success() -> Self {
         Self {
             success: true,
@@ -46,35 +46,35 @@ impl ServerConfigResponse {
 }
 
 #[derive(Deserialize)]
-pub struct ServerConfig {
-    pub server: Server,
+pub struct GatewayConfig {
+    pub gateway: Gateway,
 }
 
 #[derive(Deserialize)]
-pub struct Server {
+pub struct Gateway {
     pub bind_addr: Ipv4Addr,
     pub bind_port: u16,
     // heartbeat_interval: Option<u16>,
 }
 
 #[derive(Deserialize)]
-pub struct ClientConfig {
-    pub client: Client,
+pub struct ProxyConfig {
+    pub proxy: Proxy,
 }
 
 #[derive(Deserialize)]
-pub struct Client {
-    pub server_addr: Ipv4Addr,
-    pub server_port: u16,
-    pub endpoint_addr: Ipv4Addr, // TODO: Fix: In Docker containers are often identified by names not IPs -> needs to work with those as well
-    pub endpoint_port: u16,
+pub struct Proxy {
+    pub gateway_addr: Ipv4Addr,
+    pub gateway_port: u16,
+    pub app_addr: Ipv4Addr, // TODO: Fix: In Docker containers are often identified by names not IPs -> needs to work with those as well
+    pub app_port: u16,
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "src")]
+#[command(name = "srp")]
 #[command(about = "Secure reverse proxy for exposing services in private networks.")]
 pub struct Args {
     #[arg(short = 'c')]

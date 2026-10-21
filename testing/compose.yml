@@ -1,40 +1,51 @@
 services:
-  srp:
+  srp_gateway:
     build:
       context: ..
-      dockerfile: srp/Dockerfile
-    container_name: srp
+      dockerfile: srp_gateway/Dockerfile
+    container_name: srp_gateway
     volumes:
-      - ./client.toml:/app/client.toml:ro
-    depends_on:
-      - srps
-    ports:
-      - "443:443"
+      - ./gateway.toml:/app/gateway.toml:ro
     networks:
       internet:
         ipv4_address: 172.25.0.2
 
-  srps:
+  srp_proxy:
     build:
       context: ..
-      dockerfile: srps/Dockerfile
-    container_name: srps
+      dockerfile: srp_proxy/Dockerfile
+    container_name: srp_proxy
     volumes:
-      - ./server.toml:/app/server.toml:ro
+      - ./proxy.toml:/app/proxy.toml:ro
     depends_on:
+      - srp_gateway
       - web
+    ports:
+      - "127.0.0.1:8080:8080"
     networks:
       internet:
         ipv4_address: 172.25.0.3
       home:
+        ipv4_address: 172.26.0.3
+
+  debug:
+    image: nicolaka/netshoot
+    container_name: debug
+    command: ["sleep", "infinity"]
+    networks:
+      internet:
+        ipv4_address: 172.25.0.10
+      home:
+        ipv4_address: 172.26.0.10
 
   web:
     image: caddy
-    container_name: web
+    container_name: app
     volumes:
     - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
-    - home
+      home:
+        ipv4_address: 172.26.0.4
 
 networks:
   internet:
@@ -43,3 +54,7 @@ networks:
        - subnet: 172.25.0.0/24
          gateway: 172.25.0.1
   home:
+    ipam:
+     config:
+       - subnet: 172.26.0.0/24
+         gateway: 172.26.0.1

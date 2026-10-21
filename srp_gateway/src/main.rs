@@ -1,17 +1,17 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ClientConfigRequest, MAX_CONFIG_SIZE, Protocol, ServerConfigResponse};
+use shared::{ProxyConfigRequest, MAX_CONFIG_SIZE, Protocol, GatewayConfigResponse};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{net::TcpListener, signal, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 mod configuration;
-use configuration::make_server_endpoint;
+use configuration::make_gateway_endpoint;
 
-async fn receive_configuration_from_client(
+async fn receive_configuration_from_proxy(
     connection: Connection,
-) -> anyhow::Result<ClientConfigRequest> {
+) -> anyhow::Result<ProxyConfigRequest> {
     let (mut send, mut recv) = connection
         .accept_bi()
         .await
@@ -22,15 +22,15 @@ async fn receive_configuration_from_client(
         .await
         .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
 
-    let config: ClientConfigRequest =
+    let config: ProxyConfigRequest =
         serde_json::from_slice(&bytes).map_err(|e| anyhow::anyhow!("invalid config JSON: {e}"))?;
 
-    info!("client config: {:?}", config);
+    info!("proxy config: {:?}", config);
 
-    let response = if !is_local_port_free(config.expose_port) {
-        ServerConfigResponse::error(String::from("port already taken"))
+    let response = if is_local_port_free(config.expose_port) == false {
+        GatewayConfigResponse::error(String::from("port already taken"))
     } else {
-        ServerConfigResponse::success()
+        GatewayConfigResponse::success()
     };
 
     let resp_bytes = serde_json::to_vec(&response)?;
@@ -42,7 +42,7 @@ async fn receive_configuration_from_client(
         Ok(config)
     } else {
         Err(anyhow::anyhow!(
-            "client config rejected: {}",
+            "proxy config rejected: {}",
             response.error_message.unwrap_or_default()
         ))
     }
@@ -116,11 +116,11 @@ async fn proxy_tcp_stream(
     Ok(())
 }
 
-async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
-    let (endpoint, _cert) = make_server_endpoint(bind_addr)
-        .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
+async fn run_gateway(bind_socket: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
+    let (endpoint, _cert) = make_gateway_endpoint(bind_socket)
+        .map_err(|e| anyhow::anyhow!("failed to create gateway endpoint: {e}"))?;
 
-    info!("listening on {bind_addr}");
+    info!("listening on {bind_socket}");
 
     let mut tasks = JoinSet::new();
 
@@ -143,7 +143,7 @@ async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyho
                         Ok(connection) => {
                             info!("connection from {}", connection.remote_address());
 
-                            let config = match receive_configuration_from_client(connection.clone()).await {
+                            let config = match receive_configuration_from_proxy(connection.clone()).await {
                                 Ok(c) => c,
                                 Err(e) => {
                                     error!("config error: {e}");
@@ -204,9 +204,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     shared::logger::init().unwrap();
 
     let args = shared::Args::parse_args();
-    let config = shared::config::parse_server_config(&args.config);
+    let config = shared::config::parse_gateway_config(&args.config);
 
-    let bind_addr = SocketAddr::new(IpAddr::V4(config.server.bind_addr), config.server.bind_port);
+    let bind_socket = SocketAddr::new(IpAddr::V4(config.gateway.bind_addr), config.gateway.bind_port);
 
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
@@ -217,6 +217,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown_clone.cancel();
     });
 
-    run_server(bind_addr, shutdown).await?;
+    run_gateway(bind_socket, shutdown).await?;
     Ok(())
 }

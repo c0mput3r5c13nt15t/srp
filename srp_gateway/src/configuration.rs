@@ -3,15 +3,15 @@ use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use std::time::Duration;
 use std::{net::SocketAddr, sync::Arc};
 
-pub(crate) fn make_server_endpoint(
+pub(crate) fn make_gateway_endpoint(
     bind_addr: SocketAddr,
 ) -> anyhow::Result<(Endpoint, CertificateDer<'static>)> {
-    let (server_config, server_cert) = configure_server()?;
+    let (server_config, server_cert) = configure_gateway()?;
     let endpoint = Endpoint::server(server_config, bind_addr)?;
     Ok((endpoint, server_cert))
 }
 
-fn configure_server() -> anyhow::Result<(ServerConfig, CertificateDer<'static>)> {
+fn configure_gateway() -> anyhow::Result<(ServerConfig, CertificateDer<'static>)> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).map_err(|e| {
         anyhow::anyhow!("failed to generate self-signed certificate for localhost: {e}")
     })?;
