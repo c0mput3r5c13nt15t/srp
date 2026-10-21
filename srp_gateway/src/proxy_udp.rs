@@ -11,9 +11,14 @@ pub async fn proxy_udp_stream(
     socket: UdpSocket,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    let mut buf = vec![0u8; 3000];
+    let mut buf = vec![0u8; 65_507];
     let mut clients: HashMap<u64, SocketAddr> = HashMap::new();
     let mut next_id: u64 = 1;
+
+    info!(
+        "[quic] max datagram size: {:?}",
+        connection.max_datagram_size()
+    );
 
     loop {
         tokio::select! {
@@ -31,7 +36,10 @@ pub async fn proxy_udp_stream(
             // UDP -> QUIC
             recv = socket.recv_from(&mut buf) => {
                 let (len, addr) = match recv {
-                    Ok(v) => v,
+                    Ok((len, addr)) => {
+                        println!("{:?} bytes received from {:?}", len, addr);
+                        (len, addr)
+                    },
                     Err(e) => {
                         error!("[udp] recv error: {e}");
                         continue;

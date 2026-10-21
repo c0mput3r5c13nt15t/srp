@@ -55,7 +55,7 @@ pub async fn proxy_udp_stream(
 
                 let payload = &data[8..];
 
-                info!("received {:?} from id {}", payload, id);
+                info!("received {:?} bytes from id {}", payload.len(), id);
 
                 if let Err(e) = socket.send(payload).await {
                     error!("[udp proxy] udp send error: {e}");

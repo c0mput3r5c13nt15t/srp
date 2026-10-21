@@ -51,24 +51,24 @@ Connecting to host 127.0.0.1, port 8080
 ## TCP
 
 ```
-iperf3 -u -c 127.0.0.1 -p 8080
+iperf3 -u -c 127.0.0.1 -p 8080 -l 1000
 Connecting to host 127.0.0.1, port 8080
-[  4] local 127.0.0.1 port 37585 connected to 127.0.0.1 port 8080
+[  4] local 127.0.0.1 port 40628 connected to 127.0.0.1 port 8080
 [ ID] Interval           Transfer     Bitrate         Total Datagrams
-[  4]   0.00-1.00   sec   160 KBytes  1.31 Mbits/sec  5  
-[  4]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   5.00-6.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   6.00-7.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   7.00-8.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   8.00-9.00   sec   128 KBytes  1.05 Mbits/sec  4  
-[  4]   9.00-10.00  sec   128 KBytes  1.05 Mbits/sec  4  
+[  4]   0.00-1.00   sec   129 KBytes  1.05 Mbits/sec  132  
+[  4]   1.00-2.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   2.00-3.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   3.00-4.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   4.00-5.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   5.00-6.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   6.00-7.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   7.00-8.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   8.00-9.00   sec   128 KBytes  1.05 Mbits/sec  131  
+[  4]   9.00-10.00  sec   128 KBytes  1.05 Mbits/sec  131  
 - - - - - - - - - - - - - - - - - - - - - - - - -
 [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
-[  4]   0.00-10.00  sec  1.28 MBytes  1.07 Mbits/sec  0.000 ms  0/41 (0%)  sender
-[  4]   0.00-10.05  sec  0.00 Bytes  0.00 bits/sec  0.000 ms  0/0 (0%)  receiver
+[  4]   0.00-10.00  sec  1.25 MBytes  1.05 Mbits/sec  0.000 ms  0/1311 (0%)  sender
+[  4]   0.00-10.04  sec  1.25 MBytes  1.04 Mbits/sec  0.362 ms  0/1311 (0%)  receiver
 
 iperf Done.
 ```

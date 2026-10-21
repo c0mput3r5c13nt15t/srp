@@ -37,11 +37,12 @@ async fn receive_configuration_from_proxy(
 
     info!("proxy config: {:?}", config);
 
-    let response = if is_local_port_free(config.expose_port) == false {
-        GatewayConfigResponse::error(String::from("port already taken"))
-    } else {
-        GatewayConfigResponse::success()
-    };
+    // let response = if is_local_port_free(config.expose_port) == false {
+    //     GatewayConfigResponse::error(String::from("port already taken"))
+    // } else {
+    //     GatewayConfigResponse::success()
+    // };
+    let response = GatewayConfigResponse::success();
 
     let resp_bytes = serde_json::to_vec(&response)?;
 
