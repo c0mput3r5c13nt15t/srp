@@ -31,7 +31,7 @@ async fn handle_tcp_stream(
     .await;
 
     if let Err(e) = result {
-        error!("[proxy stream] error: {e}");
+        error!("[tcp proxy stream] error: {e}");
     }
 }
 

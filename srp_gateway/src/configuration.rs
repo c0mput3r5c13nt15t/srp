@@ -26,5 +26,8 @@ fn configure_gateway() -> anyhow::Result<(ServerConfig, CertificateDer<'static>)
     transport_config.max_concurrent_uni_streams(0_u8.into());
     transport_config.keep_alive_interval(Some(Duration::from_secs(10)));
 
+    transport_config.datagram_receive_buffer_size(Some(1024 * 1024));
+    transport_config.datagram_send_buffer_size(1024 * 1024);
+
     Ok((server_config, cert_der))
 }

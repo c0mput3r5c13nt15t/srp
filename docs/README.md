@@ -21,7 +21,7 @@ flowchart LR
     client --Request--> srp_gateway
     srp_gateway <--QUIC-Tunnel--> srp_proxy
     srp_proxy --Request--> app
-    service --Response--> srp_proxy
+    app --Response--> srp_proxy
     srp_gateway --Response--> client
 
     srp_proxy --Heartbeats--> srp_gateway
