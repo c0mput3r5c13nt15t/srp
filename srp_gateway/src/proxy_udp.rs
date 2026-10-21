@@ -12,7 +12,10 @@ pub async fn proxy_udp_stream(
     shutdown: CancellationToken,
 ) -> Result<()> {
     let mut buf = vec![0u8; 65_507];
-    let mut clients: HashMap<u64, SocketAddr> = HashMap::new();
+    // two maps for O(1) access to the id / addr for incoming UDP / QUIC packets
+    // TODO: make sure ids don't overflow
+    let mut addr_to_id: HashMap<SocketAddr, u64> = HashMap::new();
+    let mut id_to_addr: HashMap<u64, SocketAddr> = HashMap::new();
     let mut next_id: u64 = 1;
 
     info!(
@@ -47,15 +50,20 @@ pub async fn proxy_udp_stream(
                 };
 
                 // Assign or reuse client ID
-                let id = clients.iter()
-                    .find(|(_, a)| **a == addr)
-                    .map(|(id, _)| *id)
-                    .unwrap_or_else(|| {
+                let id = match addr_to_id.get(&addr) {
+                    Some(&id) => id,
+                    None => {
                         let id = next_id;
-                        next_id += 1;
-                        clients.insert(id, addr);
+                        next_id = next_id.checked_add(1)
+                            .ok_or_else(|| anyhow::anyhow!("client ID exhausted"))?;
+
+                        addr_to_id.insert(addr, id);
+                        id_to_addr.insert(id, addr);
                         id
-                    });
+                    }
+                };
+
+                println!("id {:?}", id);
 
                 // Encode: [client_id | payload]
                 let mut msg = BytesMut::with_capacity(8 + len);
@@ -84,8 +92,10 @@ pub async fn proxy_udp_stream(
                 let id = u64::from_be_bytes(data[..8].try_into().unwrap());
                 let payload = &data[8..];
 
-                if let Some(addr) = clients.get(&id) && let Err(e) = socket.send_to(payload, addr).await {
-                        error!("[udp] send_to error: {e}");
+                if let Some(addr) = id_to_addr.get(&id) {
+                    if let Err(e) = socket.send_to(payload, addr).await {
+                        error!("[udp gateway] send error: {e}");
+                    }
                 }
             }
         }

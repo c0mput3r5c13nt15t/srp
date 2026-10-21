@@ -2,8 +2,15 @@ use anyhow::Result;
 use bytes::BytesMut;
 use log::{error, info};
 use quinn::Connection;
-use std::{collections::HashMap, net::SocketAddr};
-use tokio::net::UdpSocket;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::Arc,
+};
+use tokio::{
+    net::UdpSocket,
+    sync::mpsc,
+};
 use tokio_util::sync::CancellationToken;
 
 pub async fn proxy_udp_stream(
@@ -11,39 +18,34 @@ pub async fn proxy_udp_stream(
     endpoint_addr: SocketAddr,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    // ONE UDP socket for everything
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    socket.connect(endpoint_addr).await?;
+    // One UDP socket per logical client.
+    let mut sockets: HashMap<u64, Arc<UdpSocket>> = HashMap::new();
 
-    info!("[udp proxy] bound and connected to {endpoint_addr}/udp");
+    // Application responses arrive here, tagged with their client ID.
+    let (response_tx, mut response_rx) =
+        mpsc::unbounded_channel::<(u64, Vec<u8>)>();
 
-    // mappings only (NO sockets here)
-    let mut id_to_addr: HashMap<u64, SocketAddr> = HashMap::new();
-    let mut addr_to_id: HashMap<SocketAddr, u64> = HashMap::new();
-    let mut next_id: u64 = 1;
-
-    let mut buf = vec![0u8; 2048];
+    let mut buf = vec![0u8; 65_507];
 
     loop {
         tokio::select! {
             _ = shutdown.cancelled() => {
-                info!("[udp proxy] shutdown received");
-                connection.close(0u32.into(), b"shutdown".as_ref());
+                connection.close(0u32.into(), b"shutdown");
                 break;
             }
 
             _ = connection.closed() => {
-                info!("[udp proxy] QUIC closed");
+                info!("[udp proxy] QUIC connection closed");
                 break;
             }
 
-            // QUIC -> UDP
+            // QUIC -> application UDP
             datagram = connection.read_datagram() => {
                 let data = match datagram {
-                    Ok(d) => d,
+                    Ok(data) => data,
                     Err(e) => {
-                        error!("[udp proxy] read_datagram error: {e}");
-                        continue;
+                        error!("[udp proxy] QUIC receive error: {e}");
+                        break;
                     }
                 };
 
@@ -51,46 +53,73 @@ pub async fn proxy_udp_stream(
                     continue;
                 }
 
-                let id = u64::from_be_bytes(data[..8].try_into().unwrap());
-
+                let id = u64::from_be_bytes(
+                    data[..8].try_into()?
+                );
                 let payload = &data[8..];
 
-                info!("received {:?} bytes from id {}", payload.len(), id);
+                // Create a dedicated UDP socket for this client.
+                if !sockets.contains_key(&id) {
+                    let socket = Arc::new(
+                        UdpSocket::bind("0.0.0.0:0").await?
+                    );
 
-                if let Err(e) = socket.send(payload).await {
-                    error!("[udp proxy] udp send error: {e}");
+                    socket.connect(endpoint_addr).await?;
+
+                    let recv_socket = Arc::clone(&socket);
+                    let tx = response_tx.clone();
+
+                    tokio::spawn(async move {
+                        let mut buf = vec![0u8; 65_507];
+
+                        loop {
+                            match recv_socket.recv(&mut buf).await {
+                                Ok(len) => {
+                                    if tx.send((
+                                        id,
+                                        buf[..len].to_vec()
+                                    )).is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "[udp proxy] client {id} \
+                                         receive error: {e}"
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                    });
+
+                    sockets.insert(id, socket);
+                    info!("[udp proxy] created UDP socket for {id}");
+                }
+
+                if let Some(socket) = sockets.get(&id) {
+                    if let Err(e) = socket.send(payload).await {
+                        error!(
+                            "[udp proxy] send to app for {id}: {e}"
+                        );
+                    }
                 }
             }
 
-            // UDP -> QUIC
-            recv = socket.recv_from(&mut buf) => {
-                let (len, addr) = match recv {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("[udp proxy] recv error: {e}");
-                        continue;
-                    }
+            // Application UDP -> QUIC
+            response = response_rx.recv() => {
+                let Some((id, payload)) = response else {
+                    break;
                 };
 
-                let id = match addr_to_id.get(&addr) {
-                    Some(id) => *id,
-                    _ => {
-                        let id = next_id;
-                        next_id += 1;
-
-                        addr_to_id.insert(addr, id);
-                        id_to_addr.insert(id, addr);
-
-                        id
-                    }
-                };
-
-                let mut msg = BytesMut::with_capacity(8 + len);
+                let mut msg = BytesMut::with_capacity(8 + payload.len());
                 msg.extend_from_slice(&id.to_be_bytes());
-                msg.extend_from_slice(&buf[..len]);
+                msg.extend_from_slice(&payload);
 
                 if let Err(e) = connection.send_datagram(msg.freeze()) {
-                    error!("[udp proxy] send_datagram error: {e}");
+                    error!(
+                        "[udp proxy] QUIC send for client {id}: {e}"
+                    );
                 }
             }
         }
