@@ -28,16 +28,6 @@ services:
       home:
         ipv4_address: 172.26.0.3
 
-  debug:
-    image: nicolaka/netshoot
-    container_name: debug
-    command: ["sleep", "infinity"]
-    networks:
-      internet:
-        ipv4_address: 172.25.0.10
-      home:
-        ipv4_address: 172.26.0.10
-
   web:
     image: caddy
     container_name: app
