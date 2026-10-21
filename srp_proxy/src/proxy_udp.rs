@@ -25,8 +25,6 @@ pub async fn proxy_udp_stream(
     let (response_tx, mut response_rx) =
         mpsc::unbounded_channel::<(u64, Vec<u8>)>();
 
-    let mut buf = vec![0u8; 65_507];
-
     loop {
         tokio::select! {
             _ = shutdown.cancelled() => {
@@ -59,7 +57,7 @@ pub async fn proxy_udp_stream(
                 let payload = &data[8..];
 
                 // Create a dedicated UDP socket for this client.
-                if !sockets.contains_key(&id) {
+                if let std::collections::hash_map::Entry::Vacant(e) = sockets.entry(id) {
                     let socket = Arc::new(
                         UdpSocket::bind("0.0.0.0:0").await?
                     );
@@ -93,16 +91,14 @@ pub async fn proxy_udp_stream(
                         }
                     });
 
-                    sockets.insert(id, socket);
+                    e.insert(socket);
                     info!("[udp proxy] created UDP socket for {id}");
                 }
 
-                if let Some(socket) = sockets.get(&id) {
-                    if let Err(e) = socket.send(payload).await {
-                        error!(
-                            "[udp proxy] send to app for {id}: {e}"
-                        );
-                    }
+                if let Some(socket) = sockets.get(&id) && let Err(e) = socket.send(payload).await {
+                    error!(
+                        "[udp proxy] send to app for {id}: {e}"
+                    );
                 }
             }
 

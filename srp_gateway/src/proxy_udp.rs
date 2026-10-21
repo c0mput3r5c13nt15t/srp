@@ -92,10 +92,8 @@ pub async fn proxy_udp_stream(
                 let id = u64::from_be_bytes(data[..8].try_into().unwrap());
                 let payload = &data[8..];
 
-                if let Some(addr) = id_to_addr.get(&id) {
-                    if let Err(e) = socket.send_to(payload, addr).await {
-                        error!("[udp gateway] send error: {e}");
-                    }
+                if let Some(addr) = id_to_addr.get(&id) && let Err(e) = socket.send_to(payload, addr).await {
+                    error!("[udp gateway] send error: {e}");
                 }
             }
         }
