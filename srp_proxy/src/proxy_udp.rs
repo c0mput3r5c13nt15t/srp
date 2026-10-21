@@ -15,7 +15,7 @@ pub async fn proxy_udp_stream(
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.connect(endpoint_addr).await?;
 
-    info!("[udp proxy] bound and connected to {endpoint_addr}");
+    info!("[udp proxy] bound and connected to {endpoint_addr}/udp");
 
     // mappings only (NO sockets here)
     let mut id_to_addr: HashMap<u64, SocketAddr> = HashMap::new();
@@ -27,13 +27,13 @@ pub async fn proxy_udp_stream(
     loop {
         tokio::select! {
             _ = shutdown.cancelled() => {
-                info!("[udp client] shutdown received");
+                info!("[udp proxy] shutdown received");
                 connection.close(0u32.into(), b"shutdown".as_ref());
                 break;
             }
 
             _ = connection.closed() => {
-                info!("[udp client] QUIC closed");
+                info!("[udp proxy] QUIC closed");
                 break;
             }
 
@@ -42,7 +42,7 @@ pub async fn proxy_udp_stream(
                 let data = match datagram {
                     Ok(d) => d,
                     Err(e) => {
-                        error!("[udp client] read_datagram error: {e}");
+                        error!("[udp proxy] read_datagram error: {e}");
                         continue;
                     }
                 };
@@ -58,7 +58,7 @@ pub async fn proxy_udp_stream(
                 info!("received {:?} from id {}", payload, id);
 
                 if let Err(e) = socket.send(payload).await {
-                    error!("[udp client] udp send error: {e}");
+                    error!("[udp proxy] udp send error: {e}");
                 }
             }
 
@@ -67,7 +67,7 @@ pub async fn proxy_udp_stream(
                 let (len, addr) = match recv {
                     Ok(v) => v,
                     Err(e) => {
-                        error!("[udp client] recv error: {e}");
+                        error!("[udp proxy] recv error: {e}");
                         continue;
                     }
                 };
@@ -90,7 +90,7 @@ pub async fn proxy_udp_stream(
                 msg.extend_from_slice(&buf[..len]);
 
                 if let Err(e) = connection.send_datagram(msg.freeze()) {
-                    error!("[udp client] send_datagram error: {e}");
+                    error!("[udp proxy] send_datagram error: {e}");
                 }
             }
         }

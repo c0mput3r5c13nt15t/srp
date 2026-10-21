@@ -58,8 +58,8 @@ async fn receive_configuration_from_proxy(
     }
 }
 
-async fn run_server(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
-    let (endpoint, _cert) = make_server_endpoint(bind_addr)
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
+    let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
     info!("listening for proxies on {bind_addr}/quic");

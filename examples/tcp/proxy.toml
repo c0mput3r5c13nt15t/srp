@@ -2,7 +2,7 @@
 gateway_addr="127.0.0.1"
 gateway_port=7000
 app_addr="127.0.0.1"
-app_port=1234
-expose_addr="0.0.0.0"
+app_port=5201
+expose_addr="127.0.0.1"
 expose_port=8080
-protocol="udp"
+protocol="tcp"

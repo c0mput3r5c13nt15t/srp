@@ -11,7 +11,7 @@ pub async fn proxy_udp_stream(
     socket: UdpSocket,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    let mut buf = vec![0u8; 1500];
+    let mut buf = vec![0u8; 3000];
     let mut clients: HashMap<u64, SocketAddr> = HashMap::new();
     let mut next_id: u64 = 1;
 
