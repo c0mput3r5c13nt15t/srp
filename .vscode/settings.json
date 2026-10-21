@@ -3,6 +3,8 @@
         "Caddyfile",
         "QUIC",
         "serde",
-        "srps"
+        "srp",
+        "srp_proxy",
+        "srp_gateway"
     ]
 }

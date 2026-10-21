@@ -1,4 +1,4 @@
-# srp
+# Secure Reverse Proxy (srp)
 
 ## Idea
 
@@ -14,17 +14,17 @@ Expose self-hosted services to the internet via an external relay (hosted on a V
 
 ## Architecture
 
-srp consists of two parts, the binary deployed on a remote server (`srps`) and the "clients" (`srp`) that connect to it. These clients are not to be confused with the clients that want to connect to one of your services, which are proxied through srp.
+srp consists of two parts, the binary deployed on a remote server (`srp_gateway`) and the "clients" (`srp_proxy`) that connect to it. These proxy clients are not to be confused with the clients that want to connect to one of your apps, which are proxied through srp.
 
 ```mermaid
 flowchart LR
-    client --Request--> srps
-    srps <--QUIC-Tunnel--> srp
-    srp --Request--> service
-    service --Response--> srp
-    srps --Response--> client
+    client --Request--> srp_gateway
+    srp_gateway <--QUIC-Tunnel--> srp_proxy
+    srp_proxy --Request--> app
+    service --Response--> srp_proxy
+    srp_gateway --Response--> client
 
-    srp --Heartbeats--> srps
+    srp_proxy --Heartbeats--> srp_gateway
 ``` 
 
 ## Tech Stack

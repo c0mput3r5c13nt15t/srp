@@ -29,6 +29,6 @@ jobs:
       with:
         name: rust-binaries
         path: |
-          target/release/srp
-          target/release/srps
+          target/release/srp_proxy
+          target/release/srp_gateway
 

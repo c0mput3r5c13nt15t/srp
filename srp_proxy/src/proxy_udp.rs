@@ -7,5 +7,5 @@ pub async fn proxy_udp_stream(
     _endpoint_addr: SocketAddr,
     _shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
-    Err(anyhow::anyhow!("udp client not yet implemented"))
+    Err(anyhow::anyhow!("udp not yet implemented"))
 }

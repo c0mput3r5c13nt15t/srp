@@ -31,7 +31,7 @@ async fn handle_tcp_stream(
     .await;
 
     if let Err(e) = result {
-        error!("[client stream] error: {e}");
+        error!("[proxy stream] error: {e}");
     }
 }
 
@@ -46,7 +46,7 @@ pub async fn proxy_tcp_stream(
         tokio::select! {
             _ = shutdown.cancelled() => {
                 info!("shutdown received, closing QUIC connection");
-                connection.close(0u32.into(), b"client shutdown".as_ref());
+                connection.close(0u32.into(), b"proxy shutdown".as_ref());
                 break;
             }
 

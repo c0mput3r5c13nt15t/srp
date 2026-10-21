@@ -1,0 +1,8 @@
+[proxy]
+gateway_addr="172.25.0.2"
+gateway_port=7000
+app_addr="172.26.0.4"
+app_port=80
+expose_addr="0.0.0.0"
+expose_port=8080
+protocol="tcp"

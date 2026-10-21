@@ -1,7 +1,7 @@
 use log::info;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{ClientConfigRequest, Protocol, ServerConfigResponse};
+use shared::{ProxyConfigRequest, Protocol, GatewayConfigResponse};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -22,7 +22,7 @@ use proxy_udp::proxy_udp_stream;
 
 async fn configure_server(
     connection: Connection,
-    request: ClientConfigRequest,
+    request: ProxyConfigRequest,
 ) -> anyhow::Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
@@ -31,7 +31,7 @@ async fn configure_server(
     send.finish()?;
 
     let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
-    let response: ServerConfigResponse = serde_json::from_slice(&response_bytes)?;
+    let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
 
     if response.success {
         Ok(())
@@ -44,10 +44,10 @@ async fn configure_server(
     }
 }
 
-pub async fn run_client(
-    server_socket: SocketAddr,
-    endpoint_socket: SocketAddr,
-    config_request: ClientConfigRequest,
+pub async fn run_proxy(
+    gateway_socket: SocketAddr,
+    app_socket: SocketAddr,
+    config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
@@ -65,9 +65,9 @@ pub async fn run_client(
 
     endpoint.set_default_client_config(client_config);
 
-    info!("connecting to {}", server_socket);
+    info!("connecting to {}", gateway_socket);
 
-    let connection = endpoint.connect(server_socket, "localhost")?.await?;
+    let connection = endpoint.connect(gateway_socket, "localhost")?.await?;
 
     info!("connected to {}", connection.remote_address());
 
@@ -84,10 +84,10 @@ pub async fn run_client(
         res = async {
             match config_request.protocol {
                 Protocol::Udp => {
-                    proxy_udp_stream(connection.clone(), endpoint_socket, shutdown.clone()).await
+                    proxy_udp_stream(connection.clone(), app_socket, shutdown.clone()).await
                 }
                 Protocol::Tcp => {
-                    proxy_tcp_stream(connection.clone(), endpoint_socket, shutdown.clone()).await
+                    proxy_tcp_stream(connection.clone(), app_socket, shutdown.clone()).await
                 }
             }
         } => {
@@ -104,22 +104,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     shared::logger::init().unwrap();
 
     let args = shared::Args::parse_args();
-    let config = shared::config::parse_client_config(&args.config);
+    let config = shared::config::parse_proxy_config(&args.config);
 
-    let server_socket = SocketAddr::new(
-        IpAddr::V4(config.client.server_addr),
-        config.client.server_port,
+    let gateway_socket = SocketAddr::new(
+        IpAddr::V4(config.proxy.gateway_addr),
+        config.proxy.gateway_port,
     );
 
-    let endpoint_socket = SocketAddr::new(
-        IpAddr::V4(config.client.endpoint_addr),
-        config.client.endpoint_port,
+    let app_socket = SocketAddr::new(
+        IpAddr::V4(config.proxy.app_addr),
+        config.proxy.app_port,
     );
 
-    let config_request = ClientConfigRequest {
-        expose_addr: config.client.expose_addr,
-        expose_port: config.client.expose_port,
-        protocol: config.client.protocol,
+    let config_request = ProxyConfigRequest {
+        expose_addr: config.proxy.expose_addr,
+        expose_port: config.proxy.expose_port,
+        protocol: config.proxy.protocol,
     };
 
     let shutdown = CancellationToken::new();
@@ -131,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         shutdown_clone.cancel();
     });
 
-    run_client(server_socket, endpoint_socket, config_request, shutdown).await?;
+    run_proxy(gateway_socket, app_socket, config_request, shutdown).await?;
 
     Ok(())
 }
