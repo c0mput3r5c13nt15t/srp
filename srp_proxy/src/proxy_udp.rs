@@ -15,7 +15,7 @@ pub async fn proxy_udp_stream(
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.connect(endpoint_addr).await?;
 
-    info!("[udp client] bound and connected to {endpoint_addr}");
+    info!("[udp proxy] bound and connected to {endpoint_addr}");
 
     // mappings only (NO sockets here)
     let mut id_to_addr: HashMap<u64, SocketAddr> = HashMap::new();
