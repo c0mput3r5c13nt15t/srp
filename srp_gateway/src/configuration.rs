@@ -4,7 +4,7 @@ use std::time::Duration;
 use std::{net::SocketAddr, sync::Arc};
 
 const QUIC_KEEP_ALIVE_INTERVAL_SEC: Duration = Duration::from_secs(10);
-const QUIC_DATAGRAM_BUFFER_BYTES: usize = 1_000_000;
+const QUIC_DATAGRAM_BUFFER_BYTES: usize = 1_048_576;
 
 pub(crate) fn make_gateway_endpoint(
     bind_addr: SocketAddr,
