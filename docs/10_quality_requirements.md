@@ -1,16 +1,22 @@
-# Quality Requirements {#section-quality-scenarios}
+# Quality Requirements
 
-:::::::::: sidebar
-::: title
-:::
+<div class="sidebar">
 
-:::: formalpara
-::: title
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Content
-:::
+
+</div>
 
 This section contains all relevant quality requirements.
-::::
+
+</div>
 
 The most important of these requirements have already been described in
 section 1.2. (quality goals), therefore they should only be referenced
@@ -18,21 +24,27 @@ here. In this section 10 you should also capture quality requirements
 with lesser importance, which will not create high risks when they are
 not fully achieved (but might be *nice-to-have*).
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Motivation
-:::
+
+</div>
 
 Since quality requirements will have a lot of influence on architectural
 decisions you should know what qualities are really important for your
 stakeholders, in a specific and measurable way.
-::::
+
+</div>
 
 <div>
 
-::: title
+<div class="title">
+
 Further Information
-:::
+
+</div>
 
 - See [Quality Requirements](https://docs.arc42.org/section-10/) in the
   arc42 documentation.
@@ -41,74 +53,96 @@ Further Information
   https://quality.arc42.org](https://quality.arc42.org).
 
 </div>
-::::::::::
 
-## Quality Requirements Overview {#_quality_requirements_overview}
+</div>
 
-:::::::::: sidebar
-::: title
-:::
+## Quality Requirements Overview
 
-:::: formalpara
-::: title
+<div class="sidebar">
+
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Content
-:::
+
+</div>
 
 An overview or summary of quality requirements.
-::::
 
-:::: formalpara
-::: title
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Motivation
-:::
+
+</div>
 
 Often we encounter dozens (or even hundreds) of detailed quality
 requirements. In this overview section you should try to summarize, e.g.
 by describing categories or topics (as suggested by [ISO
 25010:2023](https://www.iso.org/obp/ui/#iso:std:iso-iec:25010:ed-2:v1:en)
 or [Q42](https://quality.arc42.org))
-::::
+
+</div>
 
 If these summary descriptions are already precise, specific enough and
 measurable, you may skip section 10.2.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Form
-:::
+
+</div>
 
 Use a simple table in which each line contains a category or topic and a
 short description of the quality requirement. Alternatively, you may use
 a mindmap to structure these quality requirements. In literature, the
 idea of a *quality attribute tree* has also been described, which puts
-the generic term \"quality\" as the root and uses a tree-like refinement
-of the term \"quality\". \[Bass+21\] introduced the term \"Quality
-Attribute Utility Tree\" for this purpose.
-::::
-::::::::::
+the generic term "quality" as the root and uses a tree-like refinement
+of the term "quality". \[Bass+21\] introduced the term "Quality
+Attribute Utility Tree" for this purpose.
 
-## Quality Scenarios {#_quality_scenarios}
+</div>
 
-:::::::::::: sidebar
-::: title
-:::
+</div>
 
-:::: formalpara
-::: title
+## Quality Scenarios
+
+<div class="sidebar">
+
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Content
-:::
+
+</div>
 
 Quality scenarios make quality requirements concrete and allow to decide
 whether they are fulfilled (in the sense of acceptance criteria). Ensure
 that your scenarios are specific and measurable.
-::::
+
+</div>
 
 Two kinds of scenarios are especially useful:
 
 - *Usage scenarios* (also called application scenarios or use case
-  scenarios) describe the system's runtime reaction to a certain
-  stimulus. This also includes scenarios that describe the system's
-  efficiency or performance. Example: The system reacts to a user's
+  scenarios) describe the system’s runtime reaction to a certain
+  stimulus. This also includes scenarios that describe the system’s
+  efficiency or performance. Example: The system reacts to a user’s
   request within one second.
 
 - *Change scenarios* describe the desired effect of a modification or
@@ -117,13 +151,17 @@ Two kinds of scenarios are especially useful:
   attribute change, and the effort or duration of the change is
   measured.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Form
-:::
+
+</div>
 
 Typical information for detailed scenarios include the following:
-::::
+
+</div>
 
 In short form (favoured in the Q42 model):
 
@@ -158,26 +196,33 @@ detailed and includes the following information:
 - **Response**: The outcome or behavior the system exhibits in reaction
   to the stimulus.
 
-- **Response Measure**: The criteria or metric by which the system's
+- **Response Measure**: The criteria or metric by which the system’s
   response is evaluated.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Examples
-:::
+
+</div>
 
 See [the Q42 quality model website](https://quality.arc42.org) for
 detailed examples of quality requirements.
-::::
+
+</div>
 
 <div>
 
-::: title
-Further Information
-:::
+<div class="title">
 
-- Len Bass, Paul Clements, Rick Kazman: \"Software Architecture in
-  Practice\", 4th Edition, Addison-Wesley, 2021.
+Further Information
 
 </div>
-::::::::::::
+
+- Len Bass, Paul Clements, Rick Kazman: "Software Architecture in
+  Practice", 4th Edition, Addison-Wesley, 2021.
+
+</div>
+
+</div>

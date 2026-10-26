@@ -1,16 +1,22 @@
-# Deployment View {#section-deployment-view}
+# Deployment View
 
-:::::::::::: sidebar
-::: title
-:::
+<div class="sidebar">
 
-:::: formalpara
-::: title
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Content
-:::
+
+</div>
 
 The deployment view describes:
-::::
+
+</div>
 
 1.  technical infrastructure used to execute your system, with
     infrastructure elements like geographical locations, environments,
@@ -34,26 +40,34 @@ elements of an infrastructure that are needed to show a deployment of
 your building blocks. Hardware architects can go beyond that and
 describe an infrastructure to any level of detail they need to capture.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Motivation
-:::
+
+</div>
 
 Software does not run without hardware. This underlying infrastructure
 can and will influence a system and/or some cross-cutting concepts.
 Therefore, there is a need to know the infrastructure.
-::::
 
-:::: formalpara
-::: title
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Form
-:::
+
+</div>
 
 Maybe a highest level deployment diagram is already contained in section
 3.2. as technical context with your own infrastructure as ONE black box.
 In this section one can zoom into this black box using additional
 deployment diagrams:
-::::
+
+</div>
 
 - UML offers deployment diagrams to express that view. Use it, probably
   with nested diagrams, when your infrastructure is more complex.
@@ -62,21 +76,28 @@ deployment diagrams:
   rather than a deployment diagram, let them use any kind that is able
   to show nodes and channels of the infrastructure.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Further Information
-:::
+
+</div>
 
 See [Deployment View](https://docs.arc42.org/section-7/) in the arc42
 documentation.
-::::
-::::::::::::
 
-## Infrastructure Level 1 {#_infrastructure_level_1}
+</div>
 
-:::: sidebar
-::: title
-:::
+</div>
+
+## Infrastructure Level 1
+
+<div class="sidebar">
+
+<div class="title">
+
+</div>
 
 Describe (usually in a combination of diagrams, tables, and text):
 
@@ -92,44 +113,45 @@ Describe (usually in a combination of diagrams, tables, and text):
 
 For multiple environments or alternative deployments please copy and
 adapt this section of arc42 for all relevant environments.
-::::
+
+</div>
 
 ***\<Overview Diagram\>***
 
-Motivation
+Motivation  
+*\<explanation in text form\>*
 
-:   *\<explanation in text form\>*
+Quality and/or Performance Features  
+*\<explanation in text form\>*
 
-Quality and/or Performance Features
+Mapping of Building Blocks to Infrastructure  
+*\<description of the mapping\>*
 
-:   *\<explanation in text form\>*
+## Infrastructure Level 2
 
-Mapping of Building Blocks to Infrastructure
+<div class="sidebar">
 
-:   *\<description of the mapping\>*
+<div class="title">
 
-## Infrastructure Level 2 {#_infrastructure_level_2}
-
-:::: sidebar
-::: title
-:::
+</div>
 
 Here you can include the internal structure of (some) infrastructure
 elements from level 1.
 
 Please copy the structure from level 1 for each selected element.
-::::
 
-### *\<Infrastructure Element 1\>* {#_infrastructure_element_1}
+</div>
 
-*\<diagram + explanation\>*
-
-### *\<Infrastructure Element 2\>* {#_infrastructure_element_2}
+### *\<Infrastructure Element 1\>*
 
 *\<diagram + explanation\>*
 
-...​
+### *\<Infrastructure Element 2\>*
 
-### *\<Infrastructure Element n\>* {#_infrastructure_element_n}
+*\<diagram + explanation\>*
+
+…​
+
+### *\<Infrastructure Element n\>*
 
 *\<diagram + explanation\>*

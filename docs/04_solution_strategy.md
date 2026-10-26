@@ -1,17 +1,23 @@
-# Solution Strategy {#section-solution-strategy}
+# Solution Strategy
 
-:::::::::::: sidebar
-::: title
-:::
+<div class="sidebar">
 
-:::: formalpara
-::: title
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Contents
-:::
+
+</div>
 
 A short summary and explanation of the fundamental decisions and
 solution strategies, that shape system architecture. It includes
-::::
+
+</div>
 
 - technology decisions
 
@@ -23,34 +29,47 @@ solution strategies, that shape system architecture. It includes
 - relevant organizational decisions, e.g. selecting a development
   process or delegating certain tasks to third parties.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Motivation
-:::
+
+</div>
 
 These decisions form the cornerstones for your architecture. They are
 the foundation for many other detailed decisions or implementation
 rules.
-::::
 
-:::: formalpara
-::: title
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Form
-:::
+
+</div>
 
 Keep the explanations of such key decisions short.
-::::
+
+</div>
 
 Motivate what was decided and why it was decided that way, based upon
 problem statement, quality goals and key constraints. Refer to details
 in the following sections.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Further Information
-:::
+
+</div>
 
 See [Solution Strategy](https://docs.arc42.org/section-4/) in the arc42
 documentation.
-::::
-::::::::::::
+
+</div>
+
+</div>

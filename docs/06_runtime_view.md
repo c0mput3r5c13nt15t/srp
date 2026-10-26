@@ -1,17 +1,23 @@
-# Runtime View {#section-runtime-view}
+# Runtime View
 
-:::::::::::: sidebar
-::: title
-:::
+<div class="sidebar">
 
-:::: formalpara
-::: title
+<div class="title">
+
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Contents
-:::
+
+</div>
 
 The runtime view describes concrete behavior and interactions of the
-system's building blocks in form of scenarios from the following areas:
-::::
+system’s building blocks in form of scenarios from the following areas:
+
+</div>
 
 - important use cases or features: how do building blocks execute them?
 
@@ -27,25 +33,33 @@ Remark: The main criterion for the choice of possible scenarios
 **not** important to describe a large number of scenarios. You should
 rather document a representative selection.
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Motivation
-:::
+
+</div>
 
 You should understand how (instances of) building blocks of your system
 perform their job and communicate at runtime. You will mainly capture
 scenarios in your documentation to communicate your architecture to
 stakeholders that are less willing or able to read and understand the
 static models (building block view, deployment view).
-::::
 
-:::: formalpara
-::: title
+</div>
+
+<div class="formalpara">
+
+<div class="title">
+
 Form
-:::
+
+</div>
 
 There are many notations for describing scenarios, e.g.
-::::
+
+</div>
 
 - numbered list of steps (in natural language)
 
@@ -57,27 +71,32 @@ There are many notations for describing scenarios, e.g.
 
 - state machines
 
-- ...​
+- …​
 
-:::: formalpara
-::: title
+<div class="formalpara">
+
+<div class="title">
+
 Further Information
-:::
+
+</div>
 
 See [Runtime View](https://docs.arc42.org/section-6/) in the arc42
 documentation.
-::::
-::::::::::::
 
-## \<Runtime Scenario 1\> {#_runtime_scenario_1}
+</div>
+
+</div>
+
+## \<Runtime Scenario 1\>
 
 - *\<insert runtime diagram or textual description of the scenario\>*
 
 - *\<insert description of the notable aspects of the interactions
   between the building block instances depicted in this diagram.\>*
 
-## \<Runtime Scenario 2\> {#_runtime_scenario_2}
+## \<Runtime Scenario 2\>
 
-## ...​
+## …​
 
-## \<Runtime Scenario n\> {#_runtime_scenario_n}
+## \<Runtime Scenario n\>
