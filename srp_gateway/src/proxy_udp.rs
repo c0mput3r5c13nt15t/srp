@@ -6,6 +6,8 @@ use std::{collections::HashMap, net::SocketAddr};
 use tokio::net::UdpSocket;
 use tokio_util::sync::CancellationToken;
 
+use shared::proxy_udp::parse_quic_data;
+
 pub async fn proxy_udp_stream(
     connection: Connection,
     socket: UdpSocket,
@@ -85,12 +87,10 @@ pub async fn proxy_udp_stream(
                     }
                 };
 
-                if data.len() < 8 {
-                    continue;
-                }
-
-                let id = u64::from_be_bytes(data[..8].try_into().unwrap());
-                let payload = &data[8..];
+                let Ok((id, payload)) = parse_quic_data(&data) else {
+                    error!("[udp proxy] QUIC parse error");
+                    break;
+                };
 
                 if let Some(addr) = id_to_addr.get(&id) && let Err(e) = socket.send_to(payload, addr).await {
                     error!("[udp gateway] send error: {e}");

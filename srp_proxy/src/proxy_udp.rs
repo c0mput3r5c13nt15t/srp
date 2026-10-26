@@ -1,17 +1,12 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytes::BytesMut;
 use log::{error, info};
 use quinn::Connection;
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::Arc,
-};
-use tokio::{
-    net::UdpSocket,
-    sync::mpsc,
-};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::{net::UdpSocket, sync::mpsc};
 use tokio_util::sync::CancellationToken;
+
+use shared::proxy_udp::parse_quic_data;
 
 pub async fn proxy_udp_stream(
     connection: Connection,
@@ -22,8 +17,7 @@ pub async fn proxy_udp_stream(
     let mut sockets: HashMap<u64, Arc<UdpSocket>> = HashMap::new();
 
     // Application responses arrive here, tagged with their client ID.
-    let (response_tx, mut response_rx) =
-        mpsc::unbounded_channel::<(u64, Vec<u8>)>();
+    let (response_tx, mut response_rx) = mpsc::unbounded_channel::<(u64, Vec<u8>)>();
 
     loop {
         tokio::select! {
@@ -47,22 +41,18 @@ pub async fn proxy_udp_stream(
                     }
                 };
 
-                if data.len() < 8 {
-                    continue;
-                }
-
-                let id = u64::from_be_bytes(
-                    data[..8].try_into()?
-                );
-                let payload = &data[8..];
+                let Ok((id, payload)) = parse_quic_data(&data) else {
+                    error!("[udp proxy] QUIC parse error");
+                    break;
+                };
 
                 // Create a dedicated UDP socket for this client.
                 if let std::collections::hash_map::Entry::Vacant(e) = sockets.entry(id) {
                     let socket = Arc::new(
-                        UdpSocket::bind("0.0.0.0:0").await?
+                        UdpSocket::bind("0.0.0.0:0").await.context("Failed to bind UDP socket")?
                     );
 
-                    socket.connect(endpoint_addr).await?;
+                    socket.connect(endpoint_addr).await.with_context(|| format!("Failed to connect UDP socket to {endpoint_addr}"))?;
 
                     let recv_socket = Arc::clone(&socket);
                     let tx = response_tx.clone();

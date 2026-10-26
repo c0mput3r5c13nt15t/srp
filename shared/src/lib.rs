@@ -1,5 +1,6 @@
 pub mod config;
 pub mod logger;
+pub mod proxy_udp;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
