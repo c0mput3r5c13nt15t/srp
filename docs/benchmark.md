@@ -22,7 +22,7 @@ srp_proxy -c examples/udp/proxy.toml
 ```
 
 
-## UDP
+## TCP
 
 4. Start iperf client
 
@@ -48,7 +48,7 @@ Connecting to host 127.0.0.1, port 8080
 ```
 
 
-## TCP
+## UDP
 
 ```
 iperf3 -u -c 127.0.0.1 -p 8080 -l 1000
