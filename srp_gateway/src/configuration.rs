@@ -3,6 +3,9 @@ use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use std::time::Duration;
 use std::{net::SocketAddr, sync::Arc};
 
+const QUIC_KEEP_ALIVE_INTERVAL_SEC: Duration = Duration::from_secs(10);
+const QUIC_DATAGRAM_BUFFER_BYTES: usize = 1_000_000;
+
 pub(crate) fn make_gateway_endpoint(
     bind_addr: SocketAddr,
 ) -> anyhow::Result<(Endpoint, CertificateDer<'static>)> {
@@ -24,10 +27,10 @@ fn configure_gateway() -> anyhow::Result<(ServerConfig, CertificateDer<'static>)
         anyhow::anyhow!("failed to get mutable access to QUIC transport configuration")
     })?;
     transport_config.max_concurrent_uni_streams(0_u8.into());
-    transport_config.keep_alive_interval(Some(Duration::from_secs(10)));
+    transport_config.keep_alive_interval(Some(QUIC_KEEP_ALIVE_INTERVAL_SEC));
 
-    transport_config.datagram_receive_buffer_size(Some(1024 * 1024));
-    transport_config.datagram_send_buffer_size(1024 * 1024);
+    transport_config.datagram_receive_buffer_size(Some(QUIC_DATAGRAM_BUFFER_BYTES));
+    transport_config.datagram_send_buffer_size(QUIC_DATAGRAM_BUFFER_BYTES);
 
     Ok((server_config, cert_der))
 }

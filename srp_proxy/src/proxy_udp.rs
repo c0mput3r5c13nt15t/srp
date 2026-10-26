@@ -6,7 +6,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{net::UdpSocket, sync::mpsc};
 use tokio_util::sync::CancellationToken;
 
-use shared::proxy_udp::parse_quic_data;
+use shared::proxy_udp::{UDP_BUFFER_SIZE_BYTES, parse_quic_data};
 
 pub async fn proxy_udp_stream(
     connection: Connection,
@@ -58,7 +58,7 @@ pub async fn proxy_udp_stream(
                     let tx = response_tx.clone();
 
                     tokio::spawn(async move {
-                        let mut buf = vec![0u8; 65_507];
+                        let mut buf = vec![0u8; UDP_BUFFER_SIZE_BYTES];
 
                         loop {
                             match recv_socket.recv(&mut buf).await {

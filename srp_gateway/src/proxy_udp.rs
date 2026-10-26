@@ -6,14 +6,14 @@ use std::{collections::HashMap, net::SocketAddr};
 use tokio::net::UdpSocket;
 use tokio_util::sync::CancellationToken;
 
-use shared::proxy_udp::parse_quic_data;
+use shared::proxy_udp::{UDP_BUFFER_SIZE_BYTES, parse_quic_data};
 
 pub async fn proxy_udp_stream(
     connection: Connection,
     socket: UdpSocket,
     shutdown: CancellationToken,
 ) -> Result<()> {
-    let mut buf = vec![0u8; 65_507];
+    let mut buf = vec![0u8; UDP_BUFFER_SIZE_BYTES];
     // two maps for O(1) access to the id / addr for incoming UDP / QUIC packets
     // TODO: make sure ids don't overflow
     let mut addr_to_id: HashMap<SocketAddr, u64> = HashMap::new();
