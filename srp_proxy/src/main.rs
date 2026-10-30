@@ -56,7 +56,7 @@ async fn authenticate_to_gateway(
     send.finish()?;
 
     let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
-    let response: ServerConfigResponse = serde_json::from_slice(&response_bytes)?;
+    let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
 
     if response.success {
         Ok(())
@@ -152,7 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-    let preshared_secret = config.client.preshared_secret;
+    let preshared_secret = config.proxy.preshared_secret;
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;

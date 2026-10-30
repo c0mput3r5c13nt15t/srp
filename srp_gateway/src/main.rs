@@ -41,9 +41,9 @@ async fn authenticate_proxy(
             "Client {} authenticated successfully",
             connection.remote_address()
         );
-        ServerConfigResponse::success()
+        GatewayConfigResponse::success()
     } else {
-        ServerConfigResponse::error(String::from("Failed to Authenticate Client"))
+        GatewayConfigResponse::error(String::from("Failed to Authenticate Client"))
     };
 
     let resp_bytes = serde_json::to_vec(&accept_secret)?;
