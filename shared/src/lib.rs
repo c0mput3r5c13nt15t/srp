@@ -24,6 +24,12 @@ pub struct ProxyConfigRequest {
     pub protocol: Protocol,
 }
 
+//The request a proxy makes when trying to authenticate
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AuthRequest {
+    pub preshared_secret: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GatewayConfigResponse {
     pub success: bool,
@@ -55,6 +61,7 @@ pub struct GatewayConfig {
 pub struct Gateway {
     pub bind_addr: Ipv4Addr,
     pub bind_port: u16,
+    pub preshared_secret: String,
     // heartbeat_interval: Option<u16>,
 }
 
@@ -72,6 +79,7 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
+    pub preshared_secret: String,
 }
 
 #[derive(Parser, Debug)]

@@ -6,3 +6,4 @@ app_port=5201
 expose_addr="127.0.0.1"
 expose_port=8080
 protocol="tcp"
+preshared_secret="abc"
