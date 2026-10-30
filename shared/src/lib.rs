@@ -24,7 +24,7 @@ pub struct ProxyConfigRequest {
     pub protocol: Protocol,
 }
 
-//The request a client makes when trying to authenticate
+//The request a proxy makes when trying to authenticate
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AuthRequest {
     pub preshared_secret: String,

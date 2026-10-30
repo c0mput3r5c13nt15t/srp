@@ -20,7 +20,7 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn configure_server(
+async fn configure_gateway(
     connection: Connection,
     request: ProxyConfigRequest,
 ) -> anyhow::Result<()> {
@@ -62,7 +62,7 @@ async fn authenticate_to_gateway(
         Ok(())
     } else {
         Err(anyhow::anyhow!(response.error_message.unwrap_or_else(
-            || "Authentication to Server failed".to_string()
+            || "Authentication to Gateway failed".to_string()
         )))
     }
 }
@@ -97,11 +97,11 @@ pub async fn run_proxy(
 
     authenticate_to_gateway(connection.clone(), preshared_secret).await?;
 
-    info!("successfully authenticated to server");
+    info!("successfully authenticated to gateway");
 
-    configure_server(connection.clone(), config_request).await?;
+    configure_gateway(connection.clone(), config_request).await?;
 
-    info!("server configuration succeeded");
+    info!("gateway configuration succeeded");
 
     tokio::select! {
         _ = shutdown.cancelled() => {

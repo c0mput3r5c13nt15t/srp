@@ -38,12 +38,12 @@ async fn authenticate_proxy(
 
     let accept_secret = if &auth_req.preshared_secret == preshared_secret {
         info!(
-            "Client {} authenticated successfully",
+            "Proxy {} authenticated successfully",
             connection.remote_address()
         );
         GatewayConfigResponse::success()
     } else {
-        GatewayConfigResponse::error(String::from("Failed to Authenticate Client"))
+        GatewayConfigResponse::error(String::from("Failed to Authenticate Proxy"))
     };
 
     let resp_bytes = serde_json::to_vec(&accept_secret)?;
@@ -55,7 +55,7 @@ async fn authenticate_proxy(
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "client secret rejected: {}",
+            "proxy secret rejected: {}",
             accept_secret.error_message.unwrap_or_default()
         ))
     }
