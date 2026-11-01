@@ -166,11 +166,13 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args = shared::Args::parse_args();
+    shared::logger::init_std_logger(args.quiet, args.verbose, args.debug);
+
     let config = shared::config::parse_gateway_config(&args.config);
 
     if !config.logging.log_file.is_empty() {
         let log_file_path = Path::new(&config.logging.log_file);
-        shared::logger::init(log_file_path, config.logging.log_level).unwrap();
+        shared::logger::init_log_file_logger(log_file_path, config.logging.log_level).unwrap();
     }
 
     let bind_socket = SocketAddr::new(

@@ -87,11 +87,36 @@ pub struct Logging {
 #[command(name = "srp")]
 #[command(about = "Secure reverse proxy for exposing services in private networks.")]
 pub struct Args {
+    // See https://clig.dev/ for reference
+    
+    // Config file
     #[arg(short = 'c')]
     #[arg(long = "config")]
     #[arg(value_name = "CONFIG_FILE")]
     #[arg(help = "Config file in toml format")]
     pub config: String,
+
+
+    // Logging
+    // Log by default: ERROR, WARN
+
+    // Only log ERROR
+    #[arg(short = 'q')]
+    #[arg(long = "quiet")]
+    #[arg(help = "Only output errors")]
+    pub quiet: bool,
+
+    // Also log INFO
+    #[arg(short = 'v')]
+    #[arg(long = "verbose")]
+    #[arg(help = " ")]
+    pub verbose: bool,
+
+    // Also log DEBUG
+    #[arg(short = 'd')]
+    #[arg(long = "debug")]
+    #[arg(help = "Show debugging output")]
+    pub debug: bool,
 }
 
 impl Args {

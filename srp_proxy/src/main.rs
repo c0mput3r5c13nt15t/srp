@@ -103,11 +103,13 @@ pub async fn run_proxy(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let args = shared::Args::parse_args();
+    shared::logger::init_std_logger(args.quiet, args.verbose, args.debug);
+
     let config = shared::config::parse_proxy_config(&args.config);
 
     if !config.logging.log_file.is_empty() {
         let log_file_path = Path::new(&config.logging.log_file);
-        shared::logger::init(log_file_path, config.logging.log_level_filter).unwrap();
+        shared::logger::init_log_file_logger(log_file_path, config.logging.log_level).unwrap();
     }
 
     let gateway_socket = SocketAddr::new(
