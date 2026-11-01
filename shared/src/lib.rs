@@ -3,6 +3,7 @@ pub mod logger;
 pub mod proxy_udp;
 
 use clap::Parser;
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 
@@ -49,6 +50,7 @@ impl GatewayConfigResponse {
 #[derive(Deserialize)]
 pub struct GatewayConfig {
     pub gateway: Gateway,
+    pub logging: Logging,
 }
 
 #[derive(Deserialize)]
@@ -61,6 +63,7 @@ pub struct Gateway {
 #[derive(Deserialize)]
 pub struct ProxyConfig {
     pub proxy: Proxy,
+    pub logging: Logging,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +75,12 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
+}
+
+#[derive(Deserialize)]
+pub struct Logging {
+    pub log_file: String,
+    pub log_level_filter: LevelFilter,
 }
 
 #[derive(Parser, Debug)]

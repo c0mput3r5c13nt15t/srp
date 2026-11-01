@@ -1,22 +1,7 @@
-use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
-struct SimpleLogger;
+use log::LevelFilter;
+use simple_logging::log_to_file;
+use std::path::Path;
 
-impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Info
-    }
-
-    fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            println!("{} - {}", record.level(), record.args());
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-static LOGGER: SimpleLogger = SimpleLogger;
-
-pub fn init() -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info))
+pub fn init(log_file_path: &Path, log_level_filter: LevelFilter) -> Result<(), std::io::Error> {
+    log_to_file(log_file_path, log_level_filter)
 }

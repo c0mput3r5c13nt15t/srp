@@ -1,8 +1,9 @@
 use log::{error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{ProxyConfigRequest, MAX_CONFIG_SIZE, Protocol, GatewayConfigResponse};
+use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
 use std::net::{IpAddr, SocketAddr};
+use std::path::Path;
 use tokio::{
     net::{TcpListener, UdpSocket},
     signal,
@@ -164,12 +165,18 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    shared::logger::init().unwrap();
-
     let args = shared::Args::parse_args();
     let config = shared::config::parse_gateway_config(&args.config);
 
-    let bind_socket = SocketAddr::new(IpAddr::V4(config.gateway.bind_addr), config.gateway.bind_port);
+    if !config.logging.log_file.is_empty() {
+        let log_file_path = Path::new(&config.logging.log_file);
+        shared::logger::init(log_file_path, config.logging.log_level_filter).unwrap();
+    }
+
+    let bind_socket = SocketAddr::new(
+        IpAddr::V4(config.gateway.bind_addr),
+        config.gateway.bind_port,
+    );
 
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();

@@ -8,6 +8,7 @@ use std::{
 };
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
+use std::path::Path;
 
 use shared::MAX_MSG_SIZE;
 
@@ -101,10 +102,13 @@ pub async fn run_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    shared::logger::init().unwrap();
-
     let args = shared::Args::parse_args();
     let config = shared::config::parse_proxy_config(&args.config);
+
+    if !config.logging.log_file.is_empty() {
+        let log_file_path = Path::new(&config.logging.log_file);
+        shared::logger::init(log_file_path, config.logging.log_level_filter).unwrap();
+    }
 
     let gateway_socket = SocketAddr::new(
         IpAddr::V4(config.proxy.gateway_addr),
