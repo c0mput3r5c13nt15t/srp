@@ -80,7 +80,7 @@ pub struct Proxy {
 #[derive(Deserialize)]
 pub struct Logging {
     pub log_file: String,
-    pub log_level_filter: LevelFilter,
+    pub log_level: LevelFilter, // TODO: Make optional
 }
 
 #[derive(Parser, Debug)]
