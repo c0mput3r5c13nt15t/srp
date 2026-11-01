@@ -2,9 +2,12 @@ use anyhow::Result;
 use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{AuthRequest, GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
+use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey};
+use rustls::crypto::aws_lc_rs::sign;
+use shared::{AuthRequest, GatewayConfigResponse, MAX_CONFIG_SIZE, MAX_MSG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
+use rand::Rng;
 use tokio::{
     net::{TcpListener, UdpSocket},
     signal,
@@ -23,22 +26,29 @@ use proxy_udp::proxy_udp_stream;
 
 async fn authenticate_proxy(
     connection: Connection,
-    preshared_secret: &String,
+    public_key: VerifyingKey,
 ) -> anyhow::Result<()> {
-    let (mut send, mut recv) = connection
-        .accept_bi()
-        .await
-        .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
+    info!("Starting authentication of proxy");
+    let (mut send, mut recv) = connection.open_bi().await?;
 
-    let bytes = recv
-        .read_to_end(MAX_CONFIG_SIZE)
-        .await
-        .map_err(|e| anyhow::anyhow!("read config failed: {e}"))?;
+    info!("Connection success");
+    // Create random Nonce
+    // TODO: Critically think about size
+    let mut nonce = [0u8;NONCE_SIZE];
+    rand::rng().fill_bytes(&mut nonce);
 
-    let auth_req: AuthRequest = serde_json::from_slice(&bytes)
-        .map_err(|e| anyhow::anyhow!("invalid Authentication request JSON: {e}"))?;
+    // Send nonce
+    send.write_all(&nonce).await?;
+    info!("sent nonce {:?}", nonce);
+    
+    // Recieve Signature
+    let mut signature_bytes =[0u8;SIGNATURE_LENGTH];
+    recv.read_exact(&mut signature_bytes).await?;
+    let signature:Signature = Signature::try_from(&signature_bytes)?;
+    info!("Recieved signature {:?}", signature);
 
-    let accept_secret = if &auth_req.preshared_secret == preshared_secret {
+    // Validate Signature
+    let accept_secret = if  public_key.verify(&nonce, &signature).is_ok(){
         info!(
             "Proxy {} authenticated successfully",
             connection.remote_address()
@@ -49,15 +59,16 @@ async fn authenticate_proxy(
     };
 
     let resp_bytes = serde_json::to_vec(&accept_secret)?;
-
+    info!("Sending response bytes {:?}", resp_bytes);
     send.write_all(&resp_bytes).await?;
     send.finish()?;
+    info!("Sent Response to Proxy");
 
-    if accept_secret.success {
+    if accept_secret.success{
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "proxy secret rejected: {}",
+            "Proxy signature rejected: {}",
             accept_secret.error_message.unwrap_or_default()
         ))
     }
@@ -109,7 +120,7 @@ async fn receive_configuration_from_proxy(connection: Connection) -> Result<Prox
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, preshared_secret: String) -> Result<()> {
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
@@ -130,14 +141,16 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, preshar
                 };
 
                 let shutdown = shutdown.clone();
-                let preshared_secret = preshared_secret.clone();
+                //TODO: Get from Config
+                let verifying_key_raw: &[u8;PUBLIC_KEY_LENGTH] = &[00;32];
+                let verifying_key:VerifyingKey = VerifyingKey::from_bytes(verifying_key_raw)?;
 
                 tasks.spawn(async move {
                     match connecting.await {
                         Ok(connection) => {
                             info!("connection from {}", connection.remote_address());
 
-                            match authenticate_proxy(connection.clone(), &preshared_secret).await {
+                            match authenticate_proxy(connection.clone(), verifying_key).await {
                                 Ok(_) => {
                                 }
                                 Err(e) => {
@@ -261,8 +274,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown_clone.cancel();
     });
 
-    let preshared_secret = config.gateway.preshared_secret.clone();
-
-    run_gateway(bind_socket, shutdown, preshared_secret).await?;
+    run_gateway(bind_socket, shutdown).await?;
     Ok(())
 }

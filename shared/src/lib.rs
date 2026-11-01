@@ -10,6 +10,7 @@ use std::net::Ipv4Addr;
 
 pub const MAX_CONFIG_SIZE: usize = 64 * 1024;
 pub const MAX_MSG_SIZE: usize = 64 * 1024;
+pub const NONCE_SIZE: usize = 32;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -83,7 +84,7 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
-    pub preshared_secret: String,
+    pub private_key: String,
 }
 
 #[derive(Deserialize)]

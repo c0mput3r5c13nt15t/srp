@@ -1,4 +1,5 @@
 use anyhow::Result;
+use ed25519_dalek::{SigningKey, Signature, Signer};
 use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
@@ -11,7 +12,7 @@ use std::{
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
-use shared::MAX_MSG_SIZE;
+use shared::{MAX_MSG_SIZE,NONCE_SIZE};
 
 mod certificate_validation;
 use certificate_validation::SkipServerVerification;
@@ -49,17 +50,38 @@ async fn configure_gateway(connection: Connection, request: ProxyConfigRequest) 
 
 async fn authenticate_to_gateway(
     connection: Connection,
-    preshared_secret: String,
+    signing_key: SigningKey,
 ) -> anyhow::Result<()> {
-    let (mut send, mut recv) = connection.open_bi().await?;
+    info!("Trying to authenticate to gateway");
+    let (mut send, mut recv) = connection
+            .accept_bi()
+            .await
+            .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
+    info!("Connection success");
 
-    let auth_req = AuthRequest { preshared_secret };
-    let req_bytes = serde_json::to_vec(&auth_req)?;
-    send.write_all(&req_bytes).await?;
-    send.finish()?;
 
-    let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
+    //Recieve Nonce
+    let mut nonce = [0u8;NONCE_SIZE];
+    recv.read_exact(&mut nonce).await?;
+    info!("received nonce {:?}", nonce);
+
+    //Sign
+    let signature: Signature = signing_key.sign(&nonce);
+    info!("signature calculated");
+
+    //Send signature
+    let signature_bytes = signature.to_bytes();
+    send.write_all(&signature_bytes).await?;
+    info!("Signature Sent");
+
+
+    //Evaluate Gateway Response
+    let response_bytes = recv
+        .read_to_end(MAX_MSG_SIZE)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed reading gateway response: {e:?}"))?;    info!("JSON received:{:?}", response_bytes);
     let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
+    info!("Got valid response");
 
     if response.success {
         Ok(())
@@ -75,8 +97,8 @@ pub async fn run_proxy(
     app_socket: SocketAddr,
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
-    preshared_secret: String,
-) -> Result<()> {
+    signing_key: SigningKey,
+) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
@@ -98,9 +120,8 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
-    
-    authenticate_to_gateway(connection.clone(), preshared_secret).await?;
-    
+    authenticate_to_gateway(connection.clone(), signing_key).await?;
+
     info!("successfully authenticated to gateway");
     info!("configuring gateway via config request");
 
@@ -176,7 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-    let preshared_secret = config.proxy.preshared_secret;
+    let signing_key:SigningKey = SigningKey::from_bytes(&[0u8;32]);
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
@@ -189,7 +210,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         app_socket,
         config_request,
         shutdown,
-        preshared_secret
+        signing_key
     )
     .await?;
     Ok(())
