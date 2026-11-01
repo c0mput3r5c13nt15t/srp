@@ -1,6 +1,7 @@
 use anyhow::Result;
-use ed25519_dalek::{SigningKey, Signature, Signer};
+use ed25519_dalek::{SECRET_KEY_LENGTH, Signature, Signer, SigningKey};
 use log::{LevelFilter, debug, info};
+use hex::decode;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{AuthRequest, GatewayConfigResponse, Protocol, ProxyConfigRequest};
@@ -197,7 +198,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-    let signing_key:SigningKey = SigningKey::from_bytes(&[0xef, 0x74, 0xa3, 0x2c, 0xb3, 0xe7, 0xea, 0xa4, 0x32, 0x02, 0x38, 0x95, 0x47, 0x0b, 0x62, 0x27, 0xb3, 0xaa, 0x51, 0x57, 0xa0, 0x9f, 0x2a, 0xdf, 0x07, 0x08, 0x49, 0xbf, 0x86, 0xf4, 0x44, 0x9f]);
+
+    let mut signing_key_bytes = [0u8; SECRET_KEY_LENGTH];
+    hex::decode_to_slice(config.proxy.private_key, & mut signing_key_bytes)?;
+    let signing_key:SigningKey = SigningKey::from_bytes(& signing_key_bytes);
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
