@@ -2,9 +2,11 @@ use anyhow::Result;
 use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
+use toml::Table;
+use hex::decode;
 use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey};
-use rustls::crypto::aws_lc_rs::sign;
-use shared::{AuthRequest, GatewayConfigResponse, MAX_CONFIG_SIZE, MAX_MSG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
+use shared::{AuthRequest, Gateway, GatewayConfig, GatewayConfigResponse, MAX_CONFIG_SIZE, MAX_MSG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
+use std::iter::Map;
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use rand::Rng;
@@ -14,7 +16,6 @@ use tokio::{
     task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
-
 mod configuration;
 use configuration::make_gateway_endpoint;
 
@@ -26,7 +27,7 @@ use proxy_udp::proxy_udp_stream;
 
 async fn authenticate_proxy(
     connection: Connection,
-    public_key: VerifyingKey,
+    pubkeys: &Table
 ) -> anyhow::Result<()> {
     info!("Starting authentication of proxy");
     let (mut send, mut recv) = connection.open_bi().await?;
@@ -47,8 +48,16 @@ async fn authenticate_proxy(
     let signature:Signature = Signature::try_from(&signature_bytes)?;
     info!("Recieved signature {:?}", signature);
 
+    //Get assymetric key from config
+    //The issue lies here and needs to be fixed by truncating the port from the remote_address string
+    let verifying_key_str:String  = pubkeys.get(&format!("{}",connection.remote_address())).unwrap().to_string();
+    
+    let mut verifying_key_raw = [0u8; PUBLIC_KEY_LENGTH];
+    hex::decode_to_slice(verifying_key_str, &mut verifying_key_raw)?;
+    let verifying_key:VerifyingKey = VerifyingKey::from_bytes(&verifying_key_raw)?;
+
     // Validate Signature
-    let accept_secret = if  public_key.verify(&nonce, &signature).is_ok(){
+    let accept_secret = if  verifying_key.verify(&nonce, &signature).is_ok(){
         info!(
             "Proxy {} authenticated successfully",
             connection.remote_address()
@@ -120,7 +129,7 @@ async fn receive_configuration_from_proxy(connection: Connection) -> Result<Prox
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, pubkeys:Table) -> anyhow::Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
@@ -141,17 +150,13 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
                 };
 
                 let shutdown = shutdown.clone();
-                //TODO: Get from Config
-                let verifying_key_raw: &[u8;PUBLIC_KEY_LENGTH] = &[0x00, 0x48, 0x91, 0x8c, 0x8a, 0x3d, 0x47, 0x35, 0x5a, 0x42, 0x81, 0xbf, 0x38, 0x1e, 0x28, 0xc6, 0x16, 0x01, 0x15, 0xd0, 0x62, 0x00, 0x6b, 0x15, 0x20, 0xe6, 0x51, 0xd0, 0xd1, 0xac, 0x8d, 0xd9];
-
-                let verifying_key:VerifyingKey = VerifyingKey::from_bytes(verifying_key_raw)?;
-
+                let pubkeys = pubkeys.clone();
                 tasks.spawn(async move {
                     match connecting.await {
                         Ok(connection) => {
                             info!("connection from {}", connection.remote_address());
 
-                            match authenticate_proxy(connection.clone(), verifying_key).await {
+                            match authenticate_proxy(connection.clone(), &pubkeys).await {
                                 Ok(_) => {
                                 }
                                 Err(e) => {
@@ -275,6 +280,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown_clone.cancel();
     });
 
-    run_gateway(bind_socket, shutdown).await?;
+    run_gateway(bind_socket, shutdown, config.gateway.pubkeys).await?;
     Ok(())
 }

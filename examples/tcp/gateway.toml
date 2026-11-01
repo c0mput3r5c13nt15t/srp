@@ -1,4 +1,5 @@
 [gateway]
 bind_addr="127.0.0.1"
 bind_port=7000
-preshared_secret="abc"
+[gateway.pubkeys]
+"127.0.0.1" = "0048918c8a3d47355a4281bf381e28c6160115d062006b1520e651d0d1ac8dd9"

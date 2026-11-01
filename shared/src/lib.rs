@@ -6,6 +6,7 @@ pub mod proxy_udp;
 use clap::Parser;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
+use toml::Table;
 use std::net::Ipv4Addr;
 
 pub const MAX_CONFIG_SIZE: usize = 64 * 1024;
@@ -65,7 +66,7 @@ pub struct GatewayConfig {
 pub struct Gateway {
     pub bind_addr: Ipv4Addr,
     pub bind_port: u16,
-    pub preshared_secret: String,
+    pub pubkeys: Table,
     // heartbeat_interval: Option<u16>,
 }
 
@@ -84,7 +85,7 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
-    pub private_key: String,
+    pub private_key: String
 }
 
 #[derive(Deserialize)]
