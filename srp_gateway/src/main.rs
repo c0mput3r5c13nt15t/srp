@@ -142,7 +142,8 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
 
                 let shutdown = shutdown.clone();
                 //TODO: Get from Config
-                let verifying_key_raw: &[u8;PUBLIC_KEY_LENGTH] = &[00;32];
+                let verifying_key_raw: &[u8;PUBLIC_KEY_LENGTH] = &[0x00, 0x48, 0x91, 0x8c, 0x8a, 0x3d, 0x47, 0x35, 0x5a, 0x42, 0x81, 0xbf, 0x38, 0x1e, 0x28, 0xc6, 0x16, 0x01, 0x15, 0xd0, 0x62, 0x00, 0x6b, 0x15, 0x20, 0xe6, 0x51, 0xd0, 0xd1, 0xac, 0x8d, 0xd9];
+
                 let verifying_key:VerifyingKey = VerifyingKey::from_bytes(verifying_key_raw)?;
 
                 tasks.spawn(async move {
