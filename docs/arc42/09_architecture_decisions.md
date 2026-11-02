@@ -1,77 +1,39 @@
 # Architecture Decisions
 
-<div class="sidebar">
+## Overview
 
-<div class="title">
+The project’s architecture is based on a small number of deliberate decisions that reflect the goal of secure and transparent service exposure in private networks.
 
-</div>
+## Decision 1: split gateway and proxy responsibilities
 
-<div class="formalpara">
+The system is divided into `srp_gateway` and `srp_proxy`.
 
-<div class="title">
+This separation makes sense because:
 
-Contents
+- the public relay must be reachable from the internet
+- the private proxy must connect out from the private network
+- responsibilities are easier to reason about when split
 
-</div>
+## Decision 2: use QUIC as the tunnel transport
 
-Important, expensive, large scale or risky architecture decisions
-including rationales. With "decisions" we mean selecting one alternative
-based on given criteria.
+The connection between the public and private sides is based on QUIC. This gives the system a modern encrypted transport with support for reliable long-lived connections.
 
-</div>
+## Decision 3: keep the relay transparent
 
-Please use your judgement to decide whether an architectural decision
-should be documented here in this central section or whether you better
-document it locally (e.g. within the white box template of one building
-block).
+The relay does not rewrite application traffic or enforce application-specific logic. It forwards traffic as-is. This is a strong design choice because it makes the system compatible with many service types.
 
-Avoid redundancy. Refer to section 4, where you already captured the
-most important decisions of your architecture.
+## Decision 4: keep configuration explicit
 
-<div class="formalpara">
+The project uses TOML configuration files to define addresses, ports, and protocol behavior. This reduces hidden behavior and keeps the setup understandable.
 
-<div class="title">
+## Decision 5: use Rust
 
-Motivation
+The implementation is in Rust because the project is a networking-heavy, concurrency-sensitive system. Rust provides good performance and memory safety for this kind of relay work.
 
-</div>
+## Decision 6: support both TCP and UDP
 
-Stakeholders of your system should be able to comprehend and retrace
-your decisions.
+The system is not limited to HTTP-style traffic. It supports both stream-based and datagram-based services, which fits the self-hosting use case.
 
-</div>
+## Summary
 
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-Various options:
-
-</div>
-
-- ADR ([Documenting Architecture
-  Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions))
-  for every important decision
-
-- List or table, ordered by importance and consequences or:
-
-- more detailed in form of separate sections per decision
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Architecture Decisions](https://docs.arc42.org/section-9/) in the
-arc42 documentation. There you will find links and examples about ADR.
-
-</div>
-
-</div>
+The architecture decisions are intentionally simple: separate public and private responsibilities, use a secure tunnel, keep forwarding transparent, and support both major transport types. These decisions align well with the project’s purpose and self-hosted deployment model.
