@@ -1,75 +1,54 @@
 # Solution Strategy
 
-<div class="sidebar">
+## Overview
 
-<div class="title">
+The solution follows a simple reverse-proxy architecture:
 
-</div>
+- a public relay (`srp_gateway`) listens on the internet-facing side
+- a private proxy (`srp_proxy`) runs next to the internal service
+- both communicate over a QUIC tunnel
+- traffic is forwarded transparently to the application behind the proxy
 
-<div class="formalpara">
+This keeps the public relay focused on forwarding and connectivity, while the private network remains responsible for the local service.
 
-<div class="title">
+## Strategy
 
-Contents
+### Public/private separation
 
-</div>
+The system is split into two runtime roles:
 
-A short summary and explanation of the fundamental decisions and
-solution strategies, that shape system architecture. It includes
+- `srp_gateway`: public-facing relay; validates configurations and exposes ports
+- `srp_proxy`: private-side connector; registers the service and forwards traffic
 
-</div>
+This separation matches the typical self-hosting scenario where the service is behind NAT or private network boundaries.
 
-- technology decisions
+### QUIC as transport
 
-- decisions about the top-level decomposition of the system, e.g. usage
-  of an architectural pattern or design pattern
+The tunnel uses QUIC as the underlying channel between gateway and proxy. This provides encrypted communication and fits well with long-lived relay connections.
 
-- decisions on how to achieve key quality goals
+### Support for both TCP and UDP
 
-- relevant organizational decisions, e.g. selecting a development
-  process or delegating certain tasks to third parties.
+The project is designed to expose more than just HTTP-based services. It supports both TCP and UDP by using protocol-specific forwarding logic.
 
-<div class="formalpara">
+### Explicit configuration
 
-<div class="title">
+The system relies on explicit configuration rather than dynamic discovery. Each proxy declares:
 
-Motivation
+- gateway address and port
+- target application address and port
+- public exposure address and port
+- protocol
 
-</div>
+This keeps the architecture understandable and easy to debug.
 
-These decisions form the cornerstones for your architecture. They are
-the foundation for many other detailed decisions or implementation
-rules.
+### Simple deployment
 
-</div>
+The design aims for self-hosted deployment with low operational overhead:
 
-<div class="formalpara">
+- binary or containerized deployment
+- config files instead of a platform abstraction
+- minimal infrastructure assumptions
 
-<div class="title">
+## Summary
 
-Form
-
-</div>
-
-Keep the explanations of such key decisions short.
-
-</div>
-
-Motivate what was decided and why it was decided that way, based upon
-problem statement, quality goals and key constraints. Refer to details
-in the following sections.
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Solution Strategy](https://docs.arc42.org/section-4/) in the arc42
-documentation.
-
-</div>
-
-</div>
+The chosen strategy is to keep the architecture small, explicit, and transparent: a relay on the public side, a proxy on the private side, and a secure tunnel connecting both. This is the core design decision that enables self-hosted service exposure without direct internet exposure of the service itself.
