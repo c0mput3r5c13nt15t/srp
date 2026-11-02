@@ -1,66 +1,44 @@
 # Architecture Constraints
 
-<div class="sidebar">
+## Overview
 
-<div class="title">
+The architecture is shaped by the requirement to expose self-hosted services securely through a public relay without requiring the service itself to be directly reachable from the internet. This leads to a simple public/private split: a relay on a public VPS and a proxy next to the service in the private network.
 
-</div>
+## Technical constraints
 
-<div class="formalpara">
+- The project is implemented as a Rust workspace with a clear separation between:
+  - `srp_gateway`
+  - `srp_proxy`
+  - `shared`
+- The public relay must stay lightweight and resource-efficient.
+- The system must support both TCP and UDP traffic.
+- Service exposure must be transparent: the target service should behave as if it were directly reachable.
+- Communication between gateway and proxy is based on QUIC, using encrypted tunnel-based transport.
+- Ports and exposed endpoints are configured explicitly rather than discovered dynamically.
 
-<div class="title">
+## Security constraints
 
-Contents
+- The public relay must not become an application-layer endpoint for the internal service.
+- Traffic between gateway and proxy must be encrypted.
+- The internal service stays behind a private network and is not exposed directly.
+- The architecture must support self-hosted operation without central platform trust assumptions.
 
-</div>
+## Operational constraints
 
-Any requirement that constraints software architects in their freedom of
-design and implementation decisions or decision about the development
-process. These constraints sometimes go beyond individual systems and
-are valid for whole organizations and companies.
+- The private side may be behind NAT, firewall rules, or home-network restrictions.
+- The gateway must be able to accept multiple proxy connections and expose services through configured ports.
+- The deployment model should remain simple enough for a self-hosted environment.
+- Port availability must be validated before exposure is activated.
 
-</div>
+## Design constraints
 
-<div class="formalpara">
+- The system follows a clear responsibility split:
+  - gateway: public relay and forwarding
+  - proxy: private-side connector to the service
+  - shared: common contracts and configuration
+- The design favors explicit configuration over complex dynamic service discovery.
+- The solution is intentionally focused on transparent service exposure rather than general-purpose application routing.
 
-<div class="title">
+## Summary
 
-Motivation
-
-</div>
-
-Architects should know exactly where they are free in their design
-decisions and where they must adhere to constraints. Constraints must
-always be dealt with; they may be negotiable, though.
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-Simple tables of constraints with explanations. If needed you can
-subdivide them into technical constraints, organizational and political
-constraints and conventions (e.g. programming or versioning guidelines,
-documentation or naming conventions)
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Architecture Constraints](https://docs.arc42.org/section-2/) in the
-arc42 documentation.
-
-</div>
-
-</div>
+The architecture is constrained by the need for secure, transparent, and low-overhead reverse exposure of private services. The result is a small but explicit relay architecture with a public gateway, a private proxy, and a clear separation of responsibilities.
