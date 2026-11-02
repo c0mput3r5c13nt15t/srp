@@ -1,188 +1,66 @@
 # Context and Scope
 
-<div class="sidebar">
+## Context
 
-<div class="title">
+The project addresses a common self-hosting problem: how to expose a service running in a private network to the internet without exposing the service host directly. The system provides a secure relay architecture in which a public gateway forwards traffic to a private proxy, which then forwards it to the local application.
 
-</div>
+The system consists of:
 
-<div class="formalpara">
+- a public relay on an external host (for example a VPS)
+- a private proxy close to the service
+- a QUIC tunnel between both endpoints
+- the internal application that is being exposed
 
-<div class="title">
+## Actors and systems
 
-Contents
+### External client
 
-</div>
+An external user or system connects to the public endpoint exposed by the gateway.
 
-Context and scope - as the name suggests - delimits your system (i.e.
-your scope) from all its communication partners (neighboring systems and
-users, i.e. the context of your system). It thereby specifies the
-external interfaces.
+### Gateway
 
-</div>
+The gateway runs on the public side. It accepts connections from proxies, validates the requested exposure, and forwards traffic to the appropriate local service.
 
-If necessary, differentiate the business context (domain specific inputs
-and outputs) from the technical context (channels, protocols, hardware).
+### Proxy
 
-<div class="formalpara">
+The proxy runs in the private network next to the service. It connects to the gateway, registers the service exposure configuration, and forwards traffic to the internal application.
 
-<div class="title">
+### Internal application
 
-Motivation
+The actual service being exposed, such as a web service, API, or UDP-based service.
 
-</div>
+## Business and technical motivation
 
-The domain interfaces and technical interfaces to communication partners
-are among your system’s most critical aspects. Make sure that you
-completely understand them.
+The project is designed for users who want to:
 
-</div>
+- expose self-hosted services without opening ports directly on the private network
+- keep services running behind NAT or home-network boundaries
+- avoid per-service public IP requirements
+- operate a simple, self-hosted relay system
 
-<div class="formalpara">
+## In scope
 
-<div class="title">
+- public relay on a VPS or other reachable host
+- outbound connection from private proxy to public gateway
+- encrypted communication between gateway and proxy
+- TCP and UDP forwarding
+- explicit IP/port mapping
+- configuration-driven deployment
+- transparent forwarding of traffic
 
-Form
+## Out of scope
 
-</div>
+- application-specific routing logic
+- user management or authentication
+- multi-tenant cloud relay platform features
+- advanced orchestration or service discovery
+- protocol translation
+- managed SaaS gateway functionality
 
-Various options:
+## Scope boundaries
 
-</div>
+The system is a reverse-proxy and tunneling solution. It focuses on exposing private services through a relay without modifying the service itself. It is not intended to replace a full API gateway, ingress controller, or hosted cloud reverse-proxy platform.
 
-- Context diagrams
+## Summary
 
-- Lists of communication partners and their interfaces.
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Context and Scope](https://docs.arc42.org/section-3/) in the arc42
-documentation.
-
-</div>
-
-</div>
-
-## Business Context
-
-<div class="sidebar">
-
-<div class="title">
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Contents
-
-</div>
-
-Specification of **all** communication partners (users, IT-systems, …​)
-with explanations of domain specific inputs and outputs or interfaces.
-Optionally you can add domain specific formats or communication
-protocols.
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Motivation
-
-</div>
-
-All stakeholders should understand which data are exchanged with the
-environment of the system.
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-All kinds of diagrams that show the system as a black box and specify
-the domain interfaces to communication partners.
-
-</div>
-
-Alternatively (or additionally) you can use a table. The title of the
-table is the name of your system, the three columns contain the name of
-the communication partner, the inputs, and the outputs.
-
-</div>
-
-**\<Diagram or Table\>**
-
-**\<optionally: Explanation of external domain interfaces\>**
-
-## Technical Context
-
-<div class="sidebar">
-
-<div class="title">
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Contents
-
-</div>
-
-Technical interfaces (channels and transmission media) linking your
-system to its environment. In addition a mapping of domain specific
-input/output to the channels, i.e. an explanation which I/O uses which
-channel.
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Motivation
-
-</div>
-
-Many stakeholders make architectural decision based on the technical
-interfaces between the system and its context. Especially infrastructure
-or hardware designers decide these technical interfaces.
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-E.g. UML deployment diagram describing channels to neighboring systems,
-together with a mapping table showing the relationships between channels
-and input/output.
-
-</div>
-
-</div>
-
-**\<Diagram or Table\>**
-
-**\<optionally: Explanation of technical interfaces\>**
-
-**\<Mapping Input/Output to Channels\>**
+The project solves the problem of secure service exposure from private environments through a lightweight relay model. The scope is intentionally limited to tunnel-based forwarding and forwarding infrastructure, not to broader platform features.
