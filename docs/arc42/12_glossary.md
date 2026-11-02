@@ -1,73 +1,37 @@
 # Glossary
 
-<div class="sidebar">
+## Gateway
 
-<div class="title">
+The public-side relay component (`srp_gateway`) that accepts proxy connections and exposes services through configured ports.
 
-</div>
+## Proxy
 
-<div class="formalpara">
+The private-side component (`srp_proxy`) that connects to the gateway and forwards traffic to the local application.
 
-<div class="title">
+## Reverse proxy
 
-Contents
+A pattern in which traffic arriving at a public endpoint is forwarded to a private service without exposing that service directly.
 
-</div>
+## QUIC
 
-The most important domain and technical terms that your stakeholders use
-when discussing the system.
+A modern transport protocol used for encrypted and low-latency communication between gateway and proxy.
 
-</div>
+## TCP
 
-You can also see the glossary as source for translations if you work in
-multi-language teams.
+Transmission Control Protocol, used for connection-oriented stream-based communication.
 
-<div class="formalpara">
+## UDP
 
-<div class="title">
+User Datagram Protocol, used for datagram-based communication.
 
-Motivation
+## Tunnel
 
-</div>
+A secure communication path between a public relay and a private application bridge.
 
-You should clearly define your terms, so that all stakeholders
+## Public relay
 
-</div>
+The externally reachable infrastructure used to connect internet clients to private services.
 
-- have an identical understanding of these terms
+## Private service
 
-- do not use synonyms and homonyms
-
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-A table with columns \<Term\> and \<Definition\>.
-
-</div>
-
-Potentially more columns in case you need translations.
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Glossary](https://docs.arc42.org/section-12/) in the arc42
-documentation.
-
-</div>
-
-</div>
-
-| Term         | Definition         |
-|--------------|--------------------|
-| *\<Term-1\>* | *\<definition-1\>* |
-| *\<Term-2\>* | *\<definition-2\>* |
+The service running in a local or private network and not directly exposed to the internet.
