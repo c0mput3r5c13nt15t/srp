@@ -38,7 +38,3 @@ The architecture is shaped by the requirement to expose self-hosted services sec
   - shared: common contracts and configuration
 - The design favors explicit configuration over complex dynamic service discovery.
 - The solution is intentionally focused on transparent service exposure rather than general-purpose application routing.
-
-## Summary
-
-The architecture is constrained by the need for secure, transparent, and low-overhead reverse exposure of private services. The result is a small but explicit relay architecture with a public gateway, a private proxy, and a clear separation of responsibilities.
