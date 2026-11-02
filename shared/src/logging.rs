@@ -40,8 +40,8 @@ pub fn init(
                 .chain(std::io::stdout()),
         );
 
-    if file_logging_path.is_some() {
-        let file = fern::log_file(file_logging_path.unwrap())?;
+    if let Some(file_logging_path) = file_logging_path {
+        let file = fern::log_file(file_logging_path)?;
 
         logger = logger.chain(
             fern::Dispatch::new()
@@ -56,10 +56,10 @@ pub fn init(
         "logging to stdout with level {}",
         stdout_logging_level_filter
     );
-    if file_logging_path.is_some() {
+    if let Some(file_logging_path) = file_logging_path {
         info!(
             "logging to file {:?} with level {}",
-            file_logging_path.unwrap(),
+            file_logging_path,
             file_logging_level_filter.unwrap_or(LevelFilter::Warn)
         );
     }
