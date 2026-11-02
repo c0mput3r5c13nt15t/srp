@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::{LevelFilter, error, info};
 use port_check::is_local_port_free;
 use quinn::Connection;
 use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
@@ -167,11 +167,17 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Parse arguments
     let args = shared::Args::parse_args();
-    let stdout_logging_level_filter = shared::logging::stdout_log_level_filter_from_arguments(
+    let stdout_logging_level_filter = match shared::logging::stdout_log_level_filter_from_arguments(
         args.quiet,
         args.verbose,
         args.debug,
-    );
+    ) {
+        Ok(level) => level,
+        Err(err) => {
+            eprintln!("Error: {err}");
+            LevelFilter::Warn
+        }
+    };
     let config = shared::config::parse_gateway_config(&args.config);
 
     // Enable logging

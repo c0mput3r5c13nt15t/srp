@@ -2,12 +2,18 @@ use log::{info, LevelFilter};
 use std::path::Path;
 use std::time::SystemTime;
 
+use crate::errors::LoggingError;
+
 pub fn stdout_log_level_filter_from_arguments(
     quiet: bool,
     verbose: bool,
     debug: bool,
-) -> LevelFilter {
-    if quiet {
+) -> Result<LevelFilter, LoggingError> {
+    if (quiet && verbose) || (quiet && debug) || (verbose && debug) {
+        return Err(LoggingError::ConflictingArguments);
+    }
+
+    Ok(if quiet {
         LevelFilter::Error
     } else if verbose {
         LevelFilter::Info
@@ -15,7 +21,7 @@ pub fn stdout_log_level_filter_from_arguments(
         LevelFilter::Debug
     } else {
         LevelFilter::Warn
-    }
+    })
 }
 
 pub fn init(

@@ -1,4 +1,4 @@
-use log::info;
+use log::{LevelFilter, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
@@ -104,11 +104,17 @@ pub async fn run_proxy(
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     // Parse Arguments
     let args = shared::Args::parse_args();
-    let stdout_logging_level_filter = shared::logging::stdout_log_level_filter_from_arguments(
+    let stdout_logging_level_filter = match shared::logging::stdout_log_level_filter_from_arguments(
         args.quiet,
         args.verbose,
         args.debug,
-    );
+    ) {
+        Ok(level) => level,
+        Err(err) => {
+            eprintln!("Error: {err}");
+            LevelFilter::Warn
+        }
+    };
     let config = shared::config::parse_proxy_config(&args.config);
 
     // Enable logging
