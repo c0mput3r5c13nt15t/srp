@@ -2,17 +2,18 @@
 
 ## Overview
 
-The project’s architecture is based on a small number of deliberate decisions that reflect the goal of secure and transparent service exposure in private networks.
+The project’s architecture is based on a small number of deliberate decisions that focus on ensuring a secure and tansparent service exposure of a private service through the use of the proxy and gateway.
 
 ## Decision 1: split gateway and proxy responsibilities
 
 The system is divided into `srp_gateway` and `srp_proxy`.
 
-This separation makes sense because:
+This separation is neccessary because:
 
 - the public relay must be reachable from the internet
 - the private proxy must connect out from the private network
 - responsibilities are easier to reason about when split
+- by separating these two, a 'trust boundary' is established, ensuring that no unneccessary information from the private service or proxy is exposed to the gateway or external client
 
 ## Decision 2: use QUIC as the tunnel transport
 
@@ -33,7 +34,3 @@ The implementation is in Rust because the project is a networking-heavy, concurr
 ## Decision 6: support both TCP and UDP
 
 The system is not limited to HTTP-style traffic. It supports both stream-based and datagram-based services, which fits the self-hosting use case.
-
-## Summary
-
-The architecture decisions are intentionally simple: separate public and private responsibilities, use a secure tunnel, keep forwarding transparent, and support both major transport types. These decisions align well with the project’s purpose and self-hosted deployment model.
