@@ -165,24 +165,37 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Parse arguments
     let args = shared::Args::parse_args();
-    shared::logger::init_std_logger(args.quiet, args.verbose, args.debug);
-
+    let stdout_logging_level_filter = shared::logging::stdout_log_level_filter_from_arguments(
+        args.quiet,
+        args.verbose,
+        args.debug,
+    );
     let config = shared::config::parse_gateway_config(&args.config);
 
-    if !config.logging.log_file.is_empty() {
-        let log_file_path = Path::new(&config.logging.log_file);
-        shared::logger::init_log_file_logger(log_file_path, config.logging.log_level).unwrap();
+    // Enable logging
+    if config.logging.is_some() {
+        let logging_config = config.logging.unwrap();
+        shared::logging::init(
+            stdout_logging_level_filter,
+            Some(Path::new(&logging_config.log_file)),
+            logging_config.log_level,
+        )
+        .unwrap();
+    } else {
+        shared::logging::init(stdout_logging_level_filter, None, None).unwrap();
     }
 
+    // Setup networking
     let bind_socket = SocketAddr::new(
         IpAddr::V4(config.gateway.bind_addr),
         config.gateway.bind_port,
     );
 
+    //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         info!("ctrl+c received");

@@ -1,14 +1,14 @@
 use log::info;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{ProxyConfigRequest, Protocol, GatewayConfigResponse};
+use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
+use std::path::Path;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
-use std::path::Path;
 
 use shared::MAX_MSG_SIZE;
 
@@ -102,35 +102,43 @@ pub async fn run_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    // Parse Arguments
     let args = shared::Args::parse_args();
-    shared::logger::init_std_logger(args.quiet, args.verbose, args.debug);
-
+    let stdout_logging_level_filter = shared::logging::stdout_log_level_filter_from_arguments(
+        args.quiet,
+        args.verbose,
+        args.debug,
+    );
     let config = shared::config::parse_proxy_config(&args.config);
 
-    if !config.logging.log_file.is_empty() {
-        let log_file_path = Path::new(&config.logging.log_file);
-        shared::logger::init_log_file_logger(log_file_path, config.logging.log_level).unwrap();
+    // Enable logging
+    if config.logging.is_some() {
+        let logging_config = config.logging.unwrap();
+        shared::logging::init(
+            stdout_logging_level_filter,
+            Some(Path::new(&logging_config.log_file)),
+            logging_config.log_level,
+        )
+        .unwrap();
+    } else {
+        shared::logging::init(stdout_logging_level_filter, None, None).unwrap();
     }
 
+    // Setup networking
     let gateway_socket = SocketAddr::new(
         IpAddr::V4(config.proxy.gateway_addr),
         config.proxy.gateway_port,
     );
-
-    let app_socket = SocketAddr::new(
-        IpAddr::V4(config.proxy.app_addr),
-        config.proxy.app_port,
-    );
-
+    let app_socket = SocketAddr::new(IpAddr::V4(config.proxy.app_addr), config.proxy.app_port);
     let config_request = ProxyConfigRequest {
         expose_addr: config.proxy.expose_addr,
         expose_port: config.proxy.expose_port,
         protocol: config.proxy.protocol,
     };
 
+    //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         info!("ctrl+c received");
@@ -138,6 +146,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     });
 
     run_proxy(gateway_socket, app_socket, config_request, shutdown).await?;
-
     Ok(())
 }

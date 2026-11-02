@@ -4,4 +4,4 @@ bind_port=7000
 
 [logging]
 log_file="./access.log"
-log_level="Warn"
+log_level="Debug"

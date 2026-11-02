@@ -1,5 +1,5 @@
 pub mod config;
-pub mod logger;
+pub mod logging;
 pub mod proxy_udp;
 
 use clap::Parser;
@@ -50,7 +50,7 @@ impl GatewayConfigResponse {
 #[derive(Deserialize)]
 pub struct GatewayConfig {
     pub gateway: Gateway,
-    pub logging: Logging,
+    pub logging: Option<Logging>,
 }
 
 #[derive(Deserialize)]
@@ -63,7 +63,7 @@ pub struct Gateway {
 #[derive(Deserialize)]
 pub struct ProxyConfig {
     pub proxy: Proxy,
-    pub logging: Logging,
+    pub logging: Option<Logging>,
 }
 
 #[derive(Deserialize)]
@@ -80,7 +80,7 @@ pub struct Proxy {
 #[derive(Deserialize)]
 pub struct Logging {
     pub log_file: String,
-    pub log_level: LevelFilter, // TODO: Make optional
+    pub log_level: Option<LevelFilter>,
 }
 
 #[derive(Parser, Debug)]

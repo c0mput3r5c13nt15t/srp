@@ -9,5 +9,5 @@ log = { version = "0.4.29", features = [ "serde" ] }
 serde = { version = "1", features = ["derive"] }
 toml = "1.1.2"
 anyhow = "1.0.102"
-simple-logging = "2.0.2"
-multi_log = "0.1.2"
+fern = "0.7.1"
+humantime = "2.4.0"
