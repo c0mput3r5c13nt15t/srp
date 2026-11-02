@@ -1,102 +1,46 @@
 # Runtime View
 
-<div class="sidebar">
+## Overview
 
-<div class="title">
+The most relevant runtime behavior is the establishment of a QUIC connection between the private proxy and the public gateway, followed by transparent forwarding to the internal application.
 
-</div>
+## Proxy registration and connection setup
 
-<div class="formalpara">
+1. The proxy reads its configuration.
+2. It connects to the gateway via QUIC.
+3. It sends a config request describing the service to be exposed.
+4. The gateway validates the request.
+5. If accepted, the gateway binds the public socket and starts forwarding.
+6. If rejected, the proxy stops with an error.
 
-<div class="title">
+This creates the runtime contract between gateway and proxy.
 
-Contents
+## TCP flow
 
-</div>
+For TCP services:
 
-The runtime view describes concrete behavior and interactions of the
-system’s building blocks in form of scenarios from the following areas:
+1. the proxy connects to the gateway
+2. the gateway binds a public TCP listener
+3. traffic from the external client is forwarded to the proxy
+4. the proxy forwards it to the local application
+5. responses are returned along the same path
 
-</div>
+This is suitable for typical web services and APIs.
 
-- important use cases or features: how do building blocks execute them?
+## UDP flow
 
-- interactions at critical external interfaces: how do building blocks
-  cooperate with users and neighboring systems?
+For UDP services:
 
-- operation and administration: launch, start-up, stop
+1. the gateway binds a public UDP socket
+2. the proxy forwards incoming datagrams to the local service
+3. responses are relayed back through the same tunnel path
 
-- error and exception scenarios
+This supports datagram-based services such as game servers or custom UDP protocols.
 
-Remark: The main criterion for the choice of possible scenarios
-(sequences, workflows) is their **architectural relevance**. It is
-**not** important to describe a large number of scenarios. You should
-rather document a representative selection.
+## Shutdown flow
 
-<div class="formalpara">
+Both gateway and proxy handle shutdown using cancellation tokens. They stop new work, close active connections, and finish cleanly before exiting.
 
-<div class="title">
+## Summary
 
-Motivation
-
-</div>
-
-You should understand how (instances of) building blocks of your system
-perform their job and communicate at runtime. You will mainly capture
-scenarios in your documentation to communicate your architecture to
-stakeholders that are less willing or able to read and understand the
-static models (building block view, deployment view).
-
-</div>
-
-<div class="formalpara">
-
-<div class="title">
-
-Form
-
-</div>
-
-There are many notations for describing scenarios, e.g.
-
-</div>
-
-- numbered list of steps (in natural language)
-
-- activity diagrams or flow charts
-
-- sequence diagrams
-
-- BPMN or EPCs (event process chains)
-
-- state machines
-
-- …​
-
-<div class="formalpara">
-
-<div class="title">
-
-Further Information
-
-</div>
-
-See [Runtime View](https://docs.arc42.org/section-6/) in the arc42
-documentation.
-
-</div>
-
-</div>
-
-## \<Runtime Scenario 1\>
-
-- *\<insert runtime diagram or textual description of the scenario\>*
-
-- *\<insert description of the notable aspects of the interactions
-  between the building block instances depicted in this diagram.\>*
-
-## \<Runtime Scenario 2\>
-
-## …​
-
-## \<Runtime Scenario n\>
+At runtime, the system behaves like a secure tunnel with a simple control flow: connect, validate, expose, and forward. The core runtime behavior is transparent forwarding of service traffic across the public/private boundary.
