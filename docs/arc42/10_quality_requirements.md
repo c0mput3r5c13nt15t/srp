@@ -27,7 +27,3 @@ The deployment must remain simple enough for self-hosted use. Clear configuratio
 ## Maintainability
 
 The system should remain easy to understand and extend as the project grows. This is supported by modular separation between gateway, proxy, and shared logic.
-
-## Summary
-
-The most important quality attributes are security, transparency, reliable forwarding, and self-hosted operability. These qualities reflect the practical purpose of the project.
