@@ -122,8 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let config = shared::config::parse_proxy_config(&args.config);
 
     // Enable logging
-    if config.logging.is_some() {
-        let logging_config = config.logging.unwrap();
+    if let Some(logging_config) = config.logging {
         shared::logging::init(
             stdout_logging_level_filter,
             Some(Path::new(&logging_config.log_file)),
