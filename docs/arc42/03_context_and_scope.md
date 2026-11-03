@@ -53,7 +53,7 @@ The project is designed for users who want to:
 - application-specific routing logic
 - user management or authentication
 - multi-tenant cloud relay platform features
-- advanced orchestration or service discovery
+- advanced service discovery
 - protocol translation
 - managed SaaS gateway functionality
 
