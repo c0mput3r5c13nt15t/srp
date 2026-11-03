@@ -2,6 +2,7 @@ use anyhow::Result;
 use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
+use tokio::io::AsyncReadExt;
 use toml::Table;
 use hex::decode;
 use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey};
@@ -30,9 +31,26 @@ async fn authenticate_proxy(
     pubkeys: &Table
 ) -> anyhow::Result<()> {
     info!("Starting authentication of proxy");
-    let (mut send, mut recv) = connection.open_bi().await?;
 
-    info!("Connection success");
+
+    let (mut send, mut recv) = connection
+        .accept_bi()
+        .await
+        .map_err(|e: quinn::ConnectionError| anyhow::anyhow!("accept bi failed: {e}"))?;
+
+    //Receive Name
+    //Receive len
+    let name_len = recv.read_u32().await? as usize;
+    if name_len > 128 || name_len < 1 {
+        return Err(anyhow::anyhow!(
+            "Invalid Name length"
+        ))
+    }
+    let mut buffer = vec![0u8; name_len];
+    recv.read_exact(&mut buffer).await?;
+    let name = String::from_utf8(buffer)?;
+    info!("Proxy identified as {}", name);
+
     // Create random Nonce
     // TODO: Critically think about size
     let mut nonce = [0u8;NONCE_SIZE];
@@ -40,20 +58,20 @@ async fn authenticate_proxy(
 
     // Send nonce
     send.write_all(&nonce).await?;
-    info!("sent nonce {:?}", nonce);
     
     // Recieve Signature
     let mut signature_bytes =[0u8;SIGNATURE_LENGTH];
     recv.read_exact(&mut signature_bytes).await?;
     let signature:Signature = Signature::try_from(&signature_bytes)?;
-    info!("Recieved signature {:?}", signature);
+    dbg!("Recieved signature {:?}", signature);
 
-    //Get assymetric key from config
     //The issue lies here and needs to be fixed by truncating the port from the remote_address string
-    let verifying_key_str:String  = pubkeys.get(&format!("{}",connection.remote_address())).unwrap().to_string();
-    
+
+    let verifying_key_str:&str  = pubkeys.get(&name).unwrap().as_str().unwrap();
+
+    dbg!("Got pubkey {:?}", str::as_bytes(&verifying_key_str)); 
     let mut verifying_key_raw = [0u8; PUBLIC_KEY_LENGTH];
-    hex::decode_to_slice(verifying_key_str, &mut verifying_key_raw)?;
+    hex::decode_to_slice(verifying_key_str, &mut verifying_key_raw).expect("Couldn't decode");
     let verifying_key:VerifyingKey = VerifyingKey::from_bytes(&verifying_key_raw)?;
 
     // Validate Signature
@@ -68,7 +86,6 @@ async fn authenticate_proxy(
     };
 
     let resp_bytes = serde_json::to_vec(&accept_secret)?;
-    info!("Sending response bytes {:?}", resp_bytes);
     send.write_all(&resp_bytes).await?;
     send.finish()?;
     info!("Sent Response to Proxy");

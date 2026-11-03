@@ -78,6 +78,7 @@ pub struct ProxyConfig {
 
 #[derive(Deserialize)]
 pub struct Proxy {
+    pub name: String,
     pub gateway_addr: Ipv4Addr,
     pub gateway_port: u16,
     pub app_addr: Ipv4Addr, // TODO: Fix: In Docker containers are often identified by names not IPs -> needs to work with those as well

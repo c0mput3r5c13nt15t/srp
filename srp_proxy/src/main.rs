@@ -6,6 +6,7 @@ use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{AuthRequest, GatewayConfigResponse, Protocol, ProxyConfigRequest};
 use std::path::Path;
+use tokio::io::AsyncWriteExt;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -52,23 +53,21 @@ async fn configure_gateway(connection: Connection, request: ProxyConfigRequest) 
 async fn authenticate_to_gateway(
     connection: Connection,
     signing_key: SigningKey,
+    name: String
 ) -> anyhow::Result<()> {
     info!("Trying to authenticate to gateway");
-    let (mut send, mut recv) = connection
-            .accept_bi()
-            .await
-            .map_err(|e| anyhow::anyhow!("accept bi failed: {e}"))?;
-    info!("Connection success");
+    let (mut send, mut recv) = connection.open_bi().await?;
 
+    //Send Name
+    send.write_u32(name.len() as u32).await?;
+    send.write_all(String::as_bytes(&name)).await?;
 
     //Recieve Nonce
     let mut nonce = [0u8;NONCE_SIZE];
     recv.read_exact(&mut nonce).await?;
-    info!("received nonce {:?}", nonce);
 
     //Sign
     let signature: Signature = signing_key.sign(&nonce);
-    info!("signature calculated");
 
     //Send signature
     let signature_bytes = signature.to_bytes();
@@ -99,6 +98,7 @@ pub async fn run_proxy(
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
     signing_key: SigningKey,
+    name: String
 ) -> anyhow::Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -121,7 +121,7 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
-    authenticate_to_gateway(connection.clone(), signing_key).await?;
+    authenticate_to_gateway(connection.clone(), signing_key, name).await?;
 
     info!("successfully authenticated to gateway");
     info!("configuring gateway via config request");
@@ -214,7 +214,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         app_socket,
         config_request,
         shutdown,
-        signing_key
+        signing_key,
+        config.proxy.name
     )
     .await?;
     Ok(())

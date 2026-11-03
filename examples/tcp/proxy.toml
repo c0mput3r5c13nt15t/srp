@@ -1,4 +1,5 @@
 [proxy]
+name="tcp_proxy"
 gateway_addr="127.0.0.1"
 gateway_port=7000
 app_addr="127.0.0.1"
