@@ -8,10 +8,11 @@ The most relevant runtime behavior is the establishment of a QUIC connection bet
 
 1. The proxy reads its configuration.
 2. It connects to the gateway via QUIC.
-3. It sends a config request describing the service to be exposed.
-4. The gateway validates the request.
-5. If accepted, the gateway binds the public socket and starts forwarding.
-6. If rejected, the proxy stops with an error.
+3. It sends an authentification request.
+4. It sends a config request describing the service to be exposed.
+5. The gateway validates the request.
+6. If accepted, the gateway binds the public socket and starts forwarding.
+7. If rejected, the proxy stops with an error.
 
 This creates the runtime contract between gateway and proxy.
 
