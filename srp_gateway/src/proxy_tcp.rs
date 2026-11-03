@@ -1,3 +1,4 @@
+use anyhow::Result;
 use log::{error, info};
 use quinn::Connection;
 use tokio::{net::TcpListener, task::JoinSet};
@@ -7,7 +8,7 @@ pub async fn proxy_tcp_stream(
     connection: Connection,
     listener: TcpListener,
     shutdown: CancellationToken,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut tasks = JoinSet::new();
 
     loop {

@@ -1,4 +1,5 @@
-use log::{LevelFilter, info};
+use anyhow::Result;
+use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
@@ -21,18 +22,19 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn configure_server(
-    connection: Connection,
-    request: ProxyConfigRequest,
-) -> anyhow::Result<()> {
+async fn configure_server(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let request_bytes = serde_json::to_vec(&request)?;
+
+    debug!("sending config request to gateway: '{:?}'", request_bytes);
     send.write_all(&request_bytes).await?;
     send.finish()?;
 
     let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
     let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
+
+    debug!("received response {:?} from gateway", response);
 
     if response.success {
         Ok(())
@@ -50,7 +52,7 @@ pub async fn run_proxy(
     app_socket: SocketAddr,
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
@@ -72,9 +74,11 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
+    info!("configuring gateway via config request");
+
     configure_server(connection.clone(), config_request).await?;
 
-    info!("server configuration succeeded");
+    info!("gateway configuration succeeded");
 
     tokio::select! {
         _ = shutdown.cancelled() => {

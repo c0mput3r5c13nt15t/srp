@@ -1,4 +1,5 @@
-use log::{LevelFilter, error, info};
+use anyhow::Result;
+use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
 use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
@@ -20,9 +21,7 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn receive_configuration_from_proxy(
-    connection: Connection,
-) -> anyhow::Result<ProxyConfigRequest> {
+async fn receive_configuration_from_proxy(connection: Connection) -> Result<ProxyConfigRequest> {
     let (mut send, mut recv) = connection
         .accept_bi()
         .await
@@ -36,40 +35,43 @@ async fn receive_configuration_from_proxy(
     let config: ProxyConfigRequest =
         serde_json::from_slice(&bytes).map_err(|e| anyhow::anyhow!("invalid config JSON: {e}"))?;
 
-    info!("proxy config: {:?}", config);
+    info!("received config request from proxy: {:?}", config);
 
     // Run early check of config to return config error before actually trying to connect
     let response = if config.protocol == Protocol::Tcp {
         if is_local_port_free(config.expose_port) == false {
+            debug!(
+                "pre-check indicates received config request is invalid because the requested port is already taken"
+            );
             GatewayConfigResponse::error(String::from("port already taken"))
         } else {
+            debug!("pre-check indicates received config request is valid");
             GatewayConfigResponse::success()
         }
     } else {
         // TODO: Check if UDP port is free
+        debug!("pre-check indicates received config request is valid");
         GatewayConfigResponse::success()
     };
 
     let resp_bytes = serde_json::to_vec(&response)?;
 
+    debug!("sending response to config request: '{:?}'", resp_bytes);
     send.write_all(&resp_bytes).await?;
     send.finish()?;
 
     if response.success {
         Ok(config)
     } else {
-        Err(anyhow::anyhow!(
-            "proxy config rejected: {}",
-            response.error_message.unwrap_or_default()
-        ))
+        Err(anyhow::anyhow!(response.error_message.unwrap_or_default()))
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyhow::Result<()> {
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
-    info!("listening for proxies on {bind_addr}/quic");
+    info!("listening for proxies on {}/quic", bind_addr);
 
     let mut tasks = JoinSet::new();
 
@@ -95,7 +97,7 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> anyh
                             let config = match receive_configuration_from_proxy(connection.clone()).await {
                                 Ok(c) => c,
                                 Err(e) => {
-                                    error!("config error: {e}");
+                                    warn!("config request from proxy was rejected: {e}");
                                     return;
                                 }
                             };
