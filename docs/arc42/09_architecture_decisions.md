@@ -25,7 +25,7 @@ The relay does not rewrite application traffic or enforce application-specific l
 
 ## Decision 4: keep configuration explicit
 
-The project uses TOML configuration files to define addresses, ports, and protocol behavior. This reduces hidden behavior and keeps the setup understandable.
+The project uses TOML configuration files to define addresses, ports, and protocol behavior. The proxy configures the gateway, so any additional configuration of the gateway is not neccessary. This reduces hidden behavior and keeps the setup understandable.
 
 ## Decision 5: use Rust
 
