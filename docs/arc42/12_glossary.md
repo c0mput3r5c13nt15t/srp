@@ -8,6 +8,10 @@ The public-side relay component (`srp_gateway`) that accepts proxy connections a
 
 The private-side component (`srp_proxy`) that connects to the gateway and forwards traffic to the local application.
 
+## Client
+
+## Application
+
 ## Reverse proxy
 
 A pattern in which traffic arriving at a public endpoint is forwarded to a private service without exposing that service directly.
