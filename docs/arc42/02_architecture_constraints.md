@@ -13,7 +13,6 @@ The architecture is shaped by the requirement to expose self-hosted services sec
 - The public relay must stay lightweight and resource-efficient.
 - The system must support both TCP and UDP traffic.
 - Service exposure must be transparent: the target service should behave as if it were directly reachable.
-- Communication between gateway and proxy is based on QUIC, using encrypted tunnel-based transport.
 - Ports and exposed endpoints are configured explicitly rather than discovered dynamically.
 
 ## Security constraints
@@ -28,13 +27,11 @@ The architecture is shaped by the requirement to expose self-hosted services sec
 - The private side may be behind NAT, firewall rules, or home-network restrictions.
 - The gateway must be able to accept multiple proxy connections and expose services through configured ports.
 - The deployment model should remain simple enough for a self-hosted environment.
-- Port availability must be validated before exposure is activated.
 
 ## Design constraints
 
 - The system follows a clear responsibility split:
   - gateway: public relay and forwarding
   - proxy: private-side connector to the service
-  - shared: common contracts and configuration
 - The design favors explicit configuration over complex dynamic service discovery.
 - The solution is intentionally focused on transparent service exposure rather than general-purpose application routing.
