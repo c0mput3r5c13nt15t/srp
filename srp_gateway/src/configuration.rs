@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log::debug;
 use quinn::{Endpoint, ServerConfig};
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use std::time::Duration;
@@ -32,8 +31,6 @@ fn configure_gateway() -> Result<(ServerConfig, CertificateDer<'static>)> {
     transport_config.keep_alive_interval(Some(QUIC_KEEP_ALIVE_INTERVAL_SEC));
     transport_config.datagram_receive_buffer_size(Some(QUIC_DATAGRAM_BUFFER_BYTES));
     transport_config.datagram_send_buffer_size(QUIC_DATAGRAM_BUFFER_BYTES);
-
-    debug!("server config: {:?}", server_config);
 
     Ok((server_config, cert_der))
 }
