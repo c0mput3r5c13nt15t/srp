@@ -1,10 +1,9 @@
 use anyhow::Result;
 use ed25519_dalek::{SECRET_KEY_LENGTH, Signature, Signer, SigningKey};
 use log::{LevelFilter, debug, info};
-use hex::decode;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{AuthRequest, GatewayConfigResponse, Protocol, ProxyConfigRequest};
+use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 use std::{
@@ -54,7 +53,7 @@ async fn authenticate_to_gateway(
     connection: Connection,
     signing_key: SigningKey,
     name: String
-) -> anyhow::Result<()> {
+) -> Result<()> {
     info!("Trying to authenticate to gateway");
     let (mut send, mut recv) = connection.open_bi().await?;
 
@@ -79,7 +78,7 @@ async fn authenticate_to_gateway(
     let response_bytes = recv
         .read_to_end(MAX_MSG_SIZE)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed reading gateway response: {e:?}"))?;    info!("JSON received:{:?}", response_bytes);
+        .map_err(|e| anyhow::anyhow!("Failed reading gateway response: {e:?}"))?;
     let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
     info!("Got valid response");
 
@@ -99,7 +98,7 @@ pub async fn run_proxy(
     shutdown: CancellationToken,
     signing_key: SigningKey,
     name: String
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()

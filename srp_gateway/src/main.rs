@@ -4,10 +4,8 @@ use port_check::is_local_port_free;
 use quinn::Connection;
 use tokio::io::AsyncReadExt;
 use toml::Table;
-use hex::decode;
 use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey};
-use shared::{AuthRequest, Gateway, GatewayConfig, GatewayConfigResponse, MAX_CONFIG_SIZE, MAX_MSG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
-use std::iter::Map;
+use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use rand::Rng;
@@ -29,7 +27,7 @@ use proxy_udp::proxy_udp_stream;
 async fn authenticate_proxy(
     connection: Connection,
     pubkeys: &Table
-) -> anyhow::Result<()> {
+) -> Result<()> {
     info!("Starting authentication of proxy");
 
 
@@ -146,7 +144,7 @@ async fn receive_configuration_from_proxy(connection: Connection) -> Result<Prox
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, pubkeys:Table) -> anyhow::Result<()> {
+async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken, pubkeys:Table) -> Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
