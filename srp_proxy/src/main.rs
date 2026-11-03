@@ -1,7 +1,9 @@
-use log::info;
+use anyhow::Result;
+use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
-use shared::{ProxyConfigRequest, Protocol, GatewayConfigResponse};
+use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
+use std::path::Path;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -20,18 +22,19 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn configure_server(
-    connection: Connection,
-    request: ProxyConfigRequest,
-) -> anyhow::Result<()> {
+async fn configure_server(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let request_bytes = serde_json::to_vec(&request)?;
+
+    debug!("sending config request to gateway: '{:?}'", request_bytes);
     send.write_all(&request_bytes).await?;
     send.finish()?;
 
     let response_bytes = recv.read_to_end(MAX_MSG_SIZE).await?;
     let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
+
+    debug!("received response {:?} from gateway", response);
 
     if response.success {
         Ok(())
@@ -49,7 +52,7 @@ pub async fn run_proxy(
     app_socket: SocketAddr,
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
     rustls::crypto::ring::default_provider()
@@ -71,9 +74,11 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
+    info!("configuring gateway via config request");
+
     configure_server(connection.clone(), config_request).await?;
 
-    info!("server configuration succeeded");
+    info!("gateway configuration succeeded");
 
     tokio::select! {
         _ = shutdown.cancelled() => {
@@ -101,30 +106,48 @@ pub async fn run_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    shared::logger::init().unwrap();
-
+    // Parse Arguments
     let args = shared::Args::parse_args();
+    let stdout_logging_level_filter = match shared::logging::stdout_log_level_filter_from_arguments(
+        args.quiet,
+        args.verbose,
+        args.debug,
+    ) {
+        Ok(level) => level,
+        Err(err) => {
+            eprintln!("Error: {err}");
+            LevelFilter::Warn
+        }
+    };
     let config = shared::config::parse_proxy_config(&args.config);
 
+    // Enable logging
+    if let Some(logging_config) = config.logging {
+        shared::logging::init(
+            stdout_logging_level_filter,
+            Some(Path::new(&logging_config.log_file)),
+            logging_config.log_level,
+        )
+        .unwrap();
+    } else {
+        shared::logging::init(stdout_logging_level_filter, None, None).unwrap();
+    }
+
+    // Setup networking
     let gateway_socket = SocketAddr::new(
         IpAddr::V4(config.proxy.gateway_addr),
         config.proxy.gateway_port,
     );
-
-    let app_socket = SocketAddr::new(
-        IpAddr::V4(config.proxy.app_addr),
-        config.proxy.app_port,
-    );
-
+    let app_socket = SocketAddr::new(IpAddr::V4(config.proxy.app_addr), config.proxy.app_port);
     let config_request = ProxyConfigRequest {
         expose_addr: config.proxy.expose_addr,
         expose_port: config.proxy.expose_port,
         protocol: config.proxy.protocol,
     };
 
+    //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
-
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         info!("ctrl+c received");
@@ -132,6 +155,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     });
 
     run_proxy(gateway_socket, app_socket, config_request, shutdown).await?;
-
     Ok(())
 }

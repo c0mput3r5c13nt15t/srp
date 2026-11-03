@@ -1,8 +1,10 @@
 pub mod config;
-pub mod logger;
+pub mod errors;
+pub mod logging;
 pub mod proxy_udp;
 
 use clap::Parser;
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 
@@ -49,6 +51,7 @@ impl GatewayConfigResponse {
 #[derive(Deserialize)]
 pub struct GatewayConfig {
     pub gateway: Gateway,
+    pub logging: Option<Logging>,
 }
 
 #[derive(Deserialize)]
@@ -61,6 +64,7 @@ pub struct Gateway {
 #[derive(Deserialize)]
 pub struct ProxyConfig {
     pub proxy: Proxy,
+    pub logging: Option<Logging>,
 }
 
 #[derive(Deserialize)]
@@ -74,15 +78,46 @@ pub struct Proxy {
     pub protocol: Protocol,
 }
 
+#[derive(Deserialize)]
+pub struct Logging {
+    pub log_file: String,
+    pub log_level: Option<LevelFilter>,
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "srp")]
 #[command(about = "Secure reverse proxy for exposing services in private networks.")]
 pub struct Args {
+    // See https://clig.dev/ for reference
+    
+    // Config file
     #[arg(short = 'c')]
     #[arg(long = "config")]
     #[arg(value_name = "CONFIG_FILE")]
     #[arg(help = "Config file in toml format")]
     pub config: String,
+
+
+    // Logging
+    // Log by default: ERROR, WARN
+
+    // Only log ERROR
+    #[arg(short = 'q')]
+    #[arg(long = "quiet")]
+    #[arg(help = "Only output errors")]
+    pub quiet: bool,
+
+    // Also log INFO
+    #[arg(short = 'v')]
+    #[arg(long = "verbose")]
+    #[arg(help = " ")]
+    pub verbose: bool,
+
+    // Also log DEBUG
+    #[arg(short = 'd')]
+    #[arg(long = "debug")]
+    #[arg(help = "Show debugging output")]
+    pub debug: bool,
 }
 
 impl Args {
