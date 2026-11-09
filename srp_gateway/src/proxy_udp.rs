@@ -65,8 +65,6 @@ pub async fn proxy_udp_stream(
                     }
                 };
 
-                println!("id {:?}", id);
-
                 // Encode: [client_id | payload]
                 let mut msg = BytesMut::with_capacity(8 + len);
                 msg.extend_from_slice(&id.to_be_bytes());
