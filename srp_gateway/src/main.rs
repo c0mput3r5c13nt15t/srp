@@ -42,7 +42,7 @@ async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<(
 
     // Receive len
     let name_len = recv.read_u32().await? as usize;
-    if name_len > 128 || name_len < 1 {
+    if !(1..=128).contains(&name_len) {
         return Err(anyhow::anyhow!("Invalid Name length"));
     }
     // Allocate Buffer
@@ -63,7 +63,7 @@ async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<(
     // Recieve signature for nonce from proxy
     let mut signature_bytes = [0u8; SIGNATURE_LENGTH];
     recv.read_exact(&mut signature_bytes).await?;
-    let signature: Signature = Signature::try_from(&signature_bytes)?;
+    let signature: Signature = Signature::from(&signature_bytes);
     dbg!("Recieved signature {:?}", signature);
 
     /* In order to make sure that the proxy does not know why the authentication fails,
@@ -79,14 +79,12 @@ async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<(
      */
 
     // Get pubkey from config
-    let pubkey_filepath = if let Some(filepath) = pubkeys.get(&proxy_name) {
-        Some(filepath.as_str().unwrap())
-    } else {
-        None
-    };
+    let pubkey_filepath = pubkeys
+        .get(&proxy_name)
+        .map(|filepath| filepath.as_str().unwrap());
 
-    let verifying_key = if pubkey_filepath.is_some() {
-        let mut pubkey_pem_file = File::open(pubkey_filepath.unwrap())?;
+    let verifying_key = if let Some(pubkey_filepath) = pubkey_filepath {
+        let mut pubkey_pem_file = File::open(pubkey_filepath)?;
         let mut pubkey_pem_string = String::new();
         pubkey_pem_file.read_to_string(&mut pubkey_pem_string)?;
         VerifyingKey::from_public_key_pem(&pubkey_pem_string)?
