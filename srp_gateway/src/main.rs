@@ -110,7 +110,7 @@ async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<(
 
     send.write_all(&resp_bytes).await?;
     send.finish()?;
-    info!("Sent Response to Proxy");
+    info!("Sent response to proxy");
 
     if accept_signature.success {
         Ok(())
