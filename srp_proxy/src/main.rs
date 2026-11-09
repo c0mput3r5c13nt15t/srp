@@ -1,15 +1,17 @@
 use anyhow::Result;
-use ed25519_dalek::{SECRET_KEY_LENGTH, Signature, Signer, SigningKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, pkcs8::DecodePrivateKey};
 use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
-use std::path::Path;
-use tokio::io::AsyncWriteExt;
 use std::{
+    fs::File,
+    io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::Path,
     sync::Arc,
 };
+use tokio::io::AsyncWriteExt;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
@@ -198,9 +200,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
 
-    let mut signing_key_bytes = [0u8; SECRET_KEY_LENGTH];
-    hex::decode_to_slice(config.proxy.private_key, & mut signing_key_bytes)?;
-    let signing_key:SigningKey = SigningKey::from_bytes(& signing_key_bytes);
+    //Read private key file
+    let mut keyfile = File::open(config.proxy.private_key)
+        .expect("Could not open private key file");
+    let mut keyfile_contents = String::new();
+    keyfile.read_to_string(& mut keyfile_contents)?;
+    let signing_key:SigningKey = SigningKey::from_pkcs8_pem(&keyfile_contents)
+        .expect("Invalid pem format in proxy keyfile");
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;

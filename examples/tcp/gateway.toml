@@ -2,5 +2,4 @@
 bind_addr="127.0.0.1"
 bind_port=7000
 [gateway.pubkeys]
-"tcp_proxy" = "0048918c8a3d47355a4281bf381e28c6160115d062006b1520e651d0d1ac8dd9"
-"udp_proxy" = "0048918c8a3d47355a4281bf381e28c6160115d062006b1520e651d0d1ac8dd9"
+"tcp_proxy" = "./examples/keys/sample_pubkey_tcp.pem"

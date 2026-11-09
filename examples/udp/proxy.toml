@@ -7,4 +7,4 @@ app_port=5201
 expose_addr="127.0.0.1"
 expose_port=8080
 protocol="udp"
-private_key="ef74a32cb3e7eaa432023895470b6227b3aa5157a09f2adf070849bf86f4449f"
+private_key="./examples/keys/sample_privkey_udp.pem"

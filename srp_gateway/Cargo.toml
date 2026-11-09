@@ -16,6 +16,6 @@ port_check = "0.3.0"
 tokio-util = "0.7.18"
 bytes = "1.11.1"
 rand = "0.10.3"
-ed25519-dalek = "3.0.0"
+ed25519-dalek = {version = "3.0.0", features = ["pem"]}
 hex = "0.4.3"
 toml = "1.1.8"

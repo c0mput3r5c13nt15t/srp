@@ -1,13 +1,15 @@
 use anyhow::Result;
+use ed25519_dalek::{SIGNATURE_LENGTH, pkcs8::DecodePublicKey, Signature, Verifier, VerifyingKey, PUBLIC_KEY_LENGTH};
 use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
 use tokio::io::AsyncReadExt;
 use toml::Table;
-use ed25519_dalek::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey};
 use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
-use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
+use std::{
+    fs::File, io::Read, net::{IpAddr, SocketAddr}, 
+    path::Path
+};
 use rand::Rng;
 use tokio::{
     net::{TcpListener, UdpSocket},
@@ -36,44 +38,71 @@ async fn authenticate_proxy(
         .await
         .map_err(|e: quinn::ConnectionError| anyhow::anyhow!("accept bi failed: {e}"))?;
 
-    //Receive Name
-    //Receive len
+    // Receive the proxy's name
+
+    // Receive len
     let name_len = recv.read_u32().await? as usize;
     if name_len > 128 || name_len < 1 {
         return Err(anyhow::anyhow!(
             "Invalid Name length"
         ))
     }
+    // Allocate Buffer
     let mut buffer = vec![0u8; name_len];
-    recv.read_exact(&mut buffer).await?;
-    let name = String::from_utf8(buffer)?;
-    info!("Proxy identified as {}", name);
 
-    // Create random Nonce
-    // TODO: Critically think about size
+    // Read name to buffer
+    recv.read_exact(&mut buffer).await?;
+    let proxy_name = String::from_utf8(buffer)?;
+    info!("Proxy identified as {}", proxy_name);
+
+    // Create random nonce
     let mut nonce = [0u8;NONCE_SIZE];
     rand::rng().fill_bytes(&mut nonce);
 
     // Send nonce
     send.write_all(&nonce).await?;
     
-    // Recieve Signature
+    // Recieve signature for nonce from proxy
     let mut signature_bytes =[0u8;SIGNATURE_LENGTH];
     recv.read_exact(&mut signature_bytes).await?;
     let signature:Signature = Signature::try_from(&signature_bytes)?;
     dbg!("Recieved signature {:?}", signature);
 
-    //The issue lies here and needs to be fixed by truncating the port from the remote_address string
 
-    let verifying_key_str:&str  = pubkeys.get(&name).unwrap().as_str().unwrap();
+    /* In order to make sure that the proxy does not know why the authentication fails,
+     * this section mustn't prematurely terminate UNLESS there is an issue with the
+     * gateway configuration.
+     * This secion results in a premature exit iff 
+     * 1) The filepath for the pubkey.pem can't be resolved
+     * 2) The filepath for the pubkey can be resolved but the file is not a valid PKCS#8 format  
+     * 
+     * This section may in particular not prematurely exit if
+     * 1) The hostname is unknown 
+     * as this would give a potential attacker the ability to brute-force hostnames
+     */
 
-    dbg!("Got pubkey {:?}", str::as_bytes(&verifying_key_str)); 
-    let mut verifying_key_raw = [0u8; PUBLIC_KEY_LENGTH];
-    hex::decode_to_slice(verifying_key_str, &mut verifying_key_raw).expect("Couldn't decode");
-    let verifying_key:VerifyingKey = VerifyingKey::from_bytes(&verifying_key_raw)?;
 
-    // Validate Signature
-    let accept_secret = if  verifying_key.verify(&nonce, &signature).is_ok(){
+    // Get pubkey from config
+    let pubkey_filepath = if let Some(filepath) = pubkeys.get(&proxy_name){
+        Some(filepath.as_str().unwrap())
+    }else{
+        None
+    };
+
+    let verifying_key = if pubkey_filepath.is_some(){
+        let mut pubkey_pem_file = File::open(pubkey_filepath.unwrap())?;
+        let mut pubkey_pem_string = String::new();
+        pubkey_pem_file.read_to_string(& mut pubkey_pem_string)?;
+        VerifyingKey::from_public_key_pem(&pubkey_pem_string)?
+    } else {
+        VerifyingKey::from_bytes(&[0u8;PUBLIC_KEY_LENGTH])?
+    };
+
+    /* Validate Signature
+     * Note that this calculation is performed with a placeholder key when no other key is found
+     * to avoid timing-sidechannels
+     */
+    let accept_signature = if verifying_key.verify(&nonce, &signature).is_ok(){
         info!(
             "Proxy {} authenticated successfully",
             connection.remote_address()
@@ -83,17 +112,19 @@ async fn authenticate_proxy(
         GatewayConfigResponse::error(String::from("Failed to Authenticate Proxy"))
     };
 
-    let resp_bytes = serde_json::to_vec(&accept_secret)?;
+
+    let resp_bytes = serde_json::to_vec(&accept_signature)?;
+
     send.write_all(&resp_bytes).await?;
     send.finish()?;
     info!("Sent Response to Proxy");
 
-    if accept_secret.success{
+    if accept_signature.success{
         Ok(())
     } else {
         Err(anyhow::anyhow!(
             "Proxy signature rejected: {}",
-            accept_secret.error_message.unwrap_or_default()
+            accept_signature.error_message.unwrap_or_default()
         ))
     }
 }
