@@ -1,3 +1,5 @@
 [gateway]
 bind_addr="172.25.0.2"
 bind_port=7000
+[gateway.pubkeys]
+"tcp_proxy" = "./examples/keys/sample_pubkey_tcp.pem"

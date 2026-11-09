@@ -1,17 +1,21 @@
 use anyhow::Result;
+use ed25519_dalek::{Signature, Signer, SigningKey, pkcs8::DecodePrivateKey};
 use log::{LevelFilter, debug, info};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint};
 use shared::{GatewayConfigResponse, Protocol, ProxyConfigRequest};
-use std::path::Path;
 use std::{
+    fs::File,
+    io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::Path,
     sync::Arc,
 };
+use tokio::io::AsyncWriteExt;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
-use shared::MAX_MSG_SIZE;
+use shared::{MAX_MSG_SIZE, NONCE_SIZE};
 
 mod certificate_validation;
 use certificate_validation::SkipServerVerification;
@@ -22,7 +26,7 @@ use proxy_tcp::proxy_tcp_stream;
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
 
-async fn configure_server(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
+async fn configure_gateway(connection: Connection, request: ProxyConfigRequest) -> Result<()> {
     let (mut send, mut recv) = connection.open_bi().await?;
 
     let request_bytes = serde_json::to_vec(&request)?;
@@ -47,11 +51,54 @@ async fn configure_server(connection: Connection, request: ProxyConfigRequest) -
     }
 }
 
+async fn authenticate_to_gateway(
+    connection: Connection,
+    signing_key: SigningKey,
+    name: String,
+) -> Result<()> {
+    info!("Trying to authenticate to gateway");
+    let (mut send, mut recv) = connection.open_bi().await?;
+
+    //Send Name
+    send.write_u32(name.len() as u32).await?;
+    send.write_all(String::as_bytes(&name)).await?;
+
+    //Recieve Nonce
+    let mut nonce = [0u8; NONCE_SIZE];
+    recv.read_exact(&mut nonce).await?;
+
+    //Sign
+    let signature: Signature = signing_key.sign(&nonce);
+
+    //Send signature
+    let signature_bytes = signature.to_bytes();
+    send.write_all(&signature_bytes).await?;
+    info!("Signature Sent");
+
+    //Evaluate Gateway Response
+    let response_bytes = recv
+        .read_to_end(MAX_MSG_SIZE)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed reading gateway response: {e:?}"))?;
+    let response: GatewayConfigResponse = serde_json::from_slice(&response_bytes)?;
+    info!("Got valid response");
+
+    if response.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(response.error_message.unwrap_or_else(
+            || "Authentication to Gateway failed".to_string()
+        )))
+    }
+}
+
 pub async fn run_proxy(
     gateway_socket: SocketAddr,
     app_socket: SocketAddr,
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
+    signing_key: SigningKey,
+    name: String,
 ) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -74,9 +121,12 @@ pub async fn run_proxy(
 
     info!("connected to {}", connection.remote_address());
 
+    authenticate_to_gateway(connection.clone(), signing_key, name).await?;
+
+    info!("successfully authenticated to gateway");
     info!("configuring gateway via config request");
 
-    configure_server(connection.clone(), config_request).await?;
+    configure_gateway(connection.clone(), config_request).await?;
 
     info!("gateway configuration succeeded");
 
@@ -148,12 +198,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //
     let shutdown = CancellationToken::new();
     let shutdown_clone = shutdown.clone();
+
+    //Read private key file
+    let mut keyfile =
+        File::open(config.proxy.private_key).expect("Could not open private key file");
+    let mut keyfile_contents = String::new();
+    keyfile.read_to_string(&mut keyfile_contents)?;
+    let signing_key: SigningKey =
+        SigningKey::from_pkcs8_pem(&keyfile_contents).expect("Invalid pem format in proxy keyfile");
+
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         info!("ctrl+c received");
         shutdown_clone.cancel();
     });
 
-    run_proxy(gateway_socket, app_socket, config_request, shutdown).await?;
+    run_proxy(
+        gateway_socket,
+        app_socket,
+        config_request,
+        shutdown,
+        signing_key,
+        config.proxy.name,
+    )
+    .await?;
     Ok(())
 }

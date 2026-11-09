@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bytes::BytesMut;
-use log::{error, info};
+use log::{debug, error, info};
 use quinn::Connection;
 use std::{collections::HashMap, net::SocketAddr};
 use tokio::net::UdpSocket;
@@ -42,7 +42,7 @@ pub async fn proxy_udp_stream(
             recv = socket.recv_from(&mut buf) => {
                 let (len, addr) = match recv {
                     Ok((len, addr)) => {
-                        println!("{:?} bytes received from {:?}", len, addr);
+                        debug!("{:?} bytes received from {:?}", len, addr);
                         (len, addr)
                     },
                     Err(e) => {
@@ -64,8 +64,6 @@ pub async fn proxy_udp_stream(
                         id
                     }
                 };
-
-                println!("id {:?}", id);
 
                 // Encode: [client_id | payload]
                 let mut msg = BytesMut::with_capacity(8 + len);

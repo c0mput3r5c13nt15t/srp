@@ -1,17 +1,26 @@
 use anyhow::Result;
+use ed25519_dalek::{
+    PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Verifier, VerifyingKey, pkcs8::DecodePublicKey,
+};
 use log::{LevelFilter, debug, error, info, warn};
 use port_check::is_local_port_free;
 use quinn::Connection;
-use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, Protocol, ProxyConfigRequest};
-use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
+use rand::Rng;
+use shared::{GatewayConfigResponse, MAX_CONFIG_SIZE, NONCE_SIZE, Protocol, ProxyConfigRequest};
+use std::{
+    fs::File,
+    io::Read,
+    net::{IpAddr, SocketAddr},
+    path::Path,
+};
+use tokio::io::AsyncReadExt;
 use tokio::{
     net::{TcpListener, UdpSocket},
     signal,
     task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
-
+use toml::Table;
 mod configuration;
 use configuration::make_gateway_endpoint;
 
@@ -20,6 +29,98 @@ use proxy_tcp::proxy_tcp_stream;
 
 mod proxy_udp;
 use proxy_udp::proxy_udp_stream;
+
+async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<()> {
+    info!("Starting authentication of proxy");
+
+    let (mut send, mut recv) = connection
+        .accept_bi()
+        .await
+        .map_err(|e: quinn::ConnectionError| anyhow::anyhow!("accept bi failed: {e}"))?;
+
+    // Receive the proxy's name
+
+    // Receive len
+    let name_len = recv.read_u32().await? as usize;
+    if !(1..=128).contains(&name_len) {
+        return Err(anyhow::anyhow!("Invalid Name length"));
+    }
+    // Allocate Buffer
+    let mut buffer = vec![0u8; name_len];
+
+    // Read name to buffer
+    recv.read_exact(&mut buffer).await?;
+    let proxy_name = String::from_utf8(buffer)?;
+    info!("Proxy identified as {}", proxy_name);
+
+    // Create random nonce
+    let mut nonce = [0u8; NONCE_SIZE];
+    rand::rng().fill_bytes(&mut nonce);
+
+    // Send nonce
+    send.write_all(&nonce).await?;
+
+    // Recieve signature for nonce from proxy
+    let mut signature_bytes = [0u8; SIGNATURE_LENGTH];
+    recv.read_exact(&mut signature_bytes).await?;
+    let signature: Signature = Signature::from(&signature_bytes);
+    debug!("Recieved signature {:?}", signature);
+
+    /* In order to make sure that the proxy does not know why the authentication fails,
+     * this section mustn't prematurely terminate UNLESS there is an issue with the
+     * gateway configuration.
+     * This secion results in a premature exit iff
+     * 1) The filepath for the pubkey.pem can't be resolved
+     * 2) The filepath for the pubkey can be resolved but the file is not a valid PKCS#8 format
+     *
+     * This section may in particular not prematurely exit if
+     * 1) The hostname is unknown
+     * as this would give a potential attacker the ability to brute-force hostnames
+     */
+
+    // Get pubkey from config
+    let pubkey_filepath = pubkeys
+        .get(&proxy_name)
+        .map(|filepath| filepath.as_str().unwrap());
+
+    let verifying_key = if let Some(pubkey_filepath) = pubkey_filepath {
+        let mut pubkey_pem_file = File::open(pubkey_filepath)?;
+        let mut pubkey_pem_string = String::new();
+        pubkey_pem_file.read_to_string(&mut pubkey_pem_string)?;
+        VerifyingKey::from_public_key_pem(&pubkey_pem_string)?
+    } else {
+        VerifyingKey::from_bytes(&[0u8; PUBLIC_KEY_LENGTH])?
+    };
+
+    /* Validate Signature
+     * Note that this calculation is performed with a placeholder key when no other key is found
+     * to avoid timing-sidechannels
+     */
+    let accept_signature = if verifying_key.verify(&nonce, &signature).is_ok() {
+        info!(
+            "Proxy {} authenticated successfully",
+            connection.remote_address()
+        );
+        GatewayConfigResponse::success()
+    } else {
+        GatewayConfigResponse::error(String::from("Failed to Authenticate Proxy"))
+    };
+
+    let resp_bytes = serde_json::to_vec(&accept_signature)?;
+
+    send.write_all(&resp_bytes).await?;
+    send.finish()?;
+    info!("Sent response to proxy");
+
+    if accept_signature.success {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Proxy signature rejected: {}",
+            accept_signature.error_message.unwrap_or_default()
+        ))
+    }
+}
 
 async fn receive_configuration_from_proxy(connection: Connection) -> Result<ProxyConfigRequest> {
     let (mut send, mut recv) = connection
@@ -67,7 +168,11 @@ async fn receive_configuration_from_proxy(connection: Connection) -> Result<Prox
     }
 }
 
-async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> Result<()> {
+async fn run_gateway(
+    bind_addr: SocketAddr,
+    shutdown: CancellationToken,
+    pubkeys: Table,
+) -> Result<()> {
     let (endpoint, _cert) = make_gateway_endpoint(bind_addr)
         .map_err(|e| anyhow::anyhow!("failed to create endpoint: {e}"))?;
 
@@ -88,12 +193,20 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> Resu
                 };
 
                 let shutdown = shutdown.clone();
-
+                let pubkeys = pubkeys.clone();
                 tasks.spawn(async move {
                     match connecting.await {
                         Ok(connection) => {
                             info!("connection from {}", connection.remote_address());
 
+                            match authenticate_proxy(connection.clone(), &pubkeys).await {
+                                Ok(_) => {
+                                }
+                                Err(e) => {
+                                    error!("authentication error: {e}");
+                                    return;
+                                }
+                            }
                             let config = match receive_configuration_from_proxy(connection.clone()).await {
                                 Ok(c) => c,
                                 Err(e) => {
@@ -106,6 +219,7 @@ async fn run_gateway(bind_addr: SocketAddr, shutdown: CancellationToken) -> Resu
                                 IpAddr::V4(config.expose_addr),
                                 config.expose_port,
                             );
+
 
                             if config.protocol == Protocol::Tcp {
                                 let listener = match TcpListener::bind(addr).await {
@@ -209,6 +323,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown_clone.cancel();
     });
 
-    run_gateway(bind_socket, shutdown).await?;
+    run_gateway(bind_socket, shutdown, config.gateway.pubkeys).await?;
     Ok(())
 }

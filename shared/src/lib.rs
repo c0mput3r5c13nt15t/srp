@@ -7,9 +7,11 @@ use clap::Parser;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
+use toml::Table;
 
 pub const MAX_CONFIG_SIZE: usize = 64 * 1024;
 pub const MAX_MSG_SIZE: usize = 64 * 1024;
+pub const NONCE_SIZE: usize = 32;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -58,6 +60,7 @@ pub struct GatewayConfig {
 pub struct Gateway {
     pub bind_addr: Ipv4Addr,
     pub bind_port: u16,
+    pub pubkeys: Table,
     // heartbeat_interval: Option<u16>,
 }
 
@@ -69,6 +72,7 @@ pub struct ProxyConfig {
 
 #[derive(Deserialize)]
 pub struct Proxy {
+    pub name: String,
     pub gateway_addr: Ipv4Addr,
     pub gateway_port: u16,
     pub app_addr: Ipv4Addr, // TODO: Fix: In Docker containers are often identified by names not IPs -> needs to work with those as well
@@ -76,6 +80,7 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
+    pub private_key: String,
 }
 
 #[derive(Deserialize)]
@@ -89,14 +94,13 @@ pub struct Logging {
 #[command(about = "Secure reverse proxy for exposing services in private networks.")]
 pub struct Args {
     // See https://clig.dev/ for reference
-    
+
     // Config file
     #[arg(short = 'c')]
     #[arg(long = "config")]
     #[arg(value_name = "CONFIG_FILE")]
     #[arg(help = "Config file in toml format")]
     pub config: String,
-
 
     // Logging
     // Log by default: ERROR, WARN
