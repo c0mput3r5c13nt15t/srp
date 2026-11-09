@@ -6,8 +6,8 @@ pub mod proxy_udp;
 use clap::Parser;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
-use toml::Table;
 use std::net::Ipv4Addr;
+use toml::Table;
 
 pub const MAX_CONFIG_SIZE: usize = 64 * 1024;
 pub const MAX_MSG_SIZE: usize = 64 * 1024;
@@ -80,7 +80,7 @@ pub struct Proxy {
     pub expose_addr: Ipv4Addr,
     pub expose_port: u16,
     pub protocol: Protocol,
-    pub private_key: String
+    pub private_key: String,
 }
 
 #[derive(Deserialize)]
@@ -94,14 +94,13 @@ pub struct Logging {
 #[command(about = "Secure reverse proxy for exposing services in private networks.")]
 pub struct Args {
     // See https://clig.dev/ for reference
-    
+
     // Config file
     #[arg(short = 'c')]
     #[arg(long = "config")]
     #[arg(value_name = "CONFIG_FILE")]
     #[arg(help = "Config file in toml format")]
     pub config: String,
-
 
     // Logging
     // Log by default: ERROR, WARN

@@ -15,7 +15,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
-use shared::{MAX_MSG_SIZE,NONCE_SIZE};
+use shared::{MAX_MSG_SIZE, NONCE_SIZE};
 
 mod certificate_validation;
 use certificate_validation::SkipServerVerification;
@@ -54,7 +54,7 @@ async fn configure_gateway(connection: Connection, request: ProxyConfigRequest) 
 async fn authenticate_to_gateway(
     connection: Connection,
     signing_key: SigningKey,
-    name: String
+    name: String,
 ) -> Result<()> {
     info!("Trying to authenticate to gateway");
     let (mut send, mut recv) = connection.open_bi().await?;
@@ -64,7 +64,7 @@ async fn authenticate_to_gateway(
     send.write_all(String::as_bytes(&name)).await?;
 
     //Recieve Nonce
-    let mut nonce = [0u8;NONCE_SIZE];
+    let mut nonce = [0u8; NONCE_SIZE];
     recv.read_exact(&mut nonce).await?;
 
     //Sign
@@ -74,7 +74,6 @@ async fn authenticate_to_gateway(
     let signature_bytes = signature.to_bytes();
     send.write_all(&signature_bytes).await?;
     info!("Signature Sent");
-
 
     //Evaluate Gateway Response
     let response_bytes = recv
@@ -99,7 +98,7 @@ pub async fn run_proxy(
     config_request: ProxyConfigRequest,
     shutdown: CancellationToken,
     signing_key: SigningKey,
-    name: String
+    name: String,
 ) -> Result<()> {
     let mut endpoint = Endpoint::client(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
 
@@ -201,12 +200,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let shutdown_clone = shutdown.clone();
 
     //Read private key file
-    let mut keyfile = File::open(config.proxy.private_key)
-        .expect("Could not open private key file");
+    let mut keyfile =
+        File::open(config.proxy.private_key).expect("Could not open private key file");
     let mut keyfile_contents = String::new();
-    keyfile.read_to_string(& mut keyfile_contents)?;
-    let signing_key:SigningKey = SigningKey::from_pkcs8_pem(&keyfile_contents)
-        .expect("Invalid pem format in proxy keyfile");
+    keyfile.read_to_string(&mut keyfile_contents)?;
+    let signing_key: SigningKey =
+        SigningKey::from_pkcs8_pem(&keyfile_contents).expect("Invalid pem format in proxy keyfile");
 
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
@@ -220,7 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         config_request,
         shutdown,
         signing_key,
-        config.proxy.name
+        config.proxy.name,
     )
     .await?;
     Ok(())
