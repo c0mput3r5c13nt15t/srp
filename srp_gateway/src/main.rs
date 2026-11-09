@@ -64,7 +64,7 @@ async fn authenticate_proxy(connection: Connection, pubkeys: &Table) -> Result<(
     let mut signature_bytes = [0u8; SIGNATURE_LENGTH];
     recv.read_exact(&mut signature_bytes).await?;
     let signature: Signature = Signature::from(&signature_bytes);
-    dbg!("Recieved signature {:?}", signature);
+    debug!("Recieved signature {:?}", signature);
 
     /* In order to make sure that the proxy does not know why the authentication fails,
      * this section mustn't prematurely terminate UNLESS there is an issue with the
